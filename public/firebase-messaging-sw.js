@@ -14,7 +14,8 @@ firebase.initializeApp({
   projectId: "rabbit-heard-leadger",
   storageBucket: "rabbit-heard-leadger.firebasestorage.app",
   messagingSenderId: "112359733558",
-  appId: "1:112359733558:web:e5df3a5d8d5211387d5b97"
+  appId: "1:112359733558:web:e5df3a5d8d5211387d5b97",
+  measurementId: "G-7TXMCL1CE6"
 });
 
 var messaging = firebase.messaging();

@@ -140,20 +140,30 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
   var firebaseConfig = {
     apiKey: "AIzaSyDc6Yne4veS8b7EN7LmvJhTsy8sFhMrGTk",
     authDomain: "rabbit-heard-leadger.firebaseapp.com",
-   projectId: "rabbit-heard-leadger",
-   storageBucket: "rabbit-heard-leadger.firebasestorage.app",
-   messagingSenderId: "112359733558",
-   appId: "1:112359733558:web:e5df3a5d8d5211387d5b97"
+    projectId: "rabbit-heard-leadger",
+    storageBucket: "rabbit-heard-leadger.firebasestorage.app",
+    messagingSenderId: "112359733558",
+    appId: "1:112359733558:web:e5df3a5d8d5211387d5b97",
+    measurementId: "G-7TXMCL1CE6"
   };
 
-  var configured = firebaseConfig.apiKey !== 'AIzaSyDc6Yne4veS8b7EN7LmvJhTsy8sFhMrGTk';
+  // Check every field, not just apiKey — a single field left as a placeholder
+  // (or a stray duplicate `firebaseConfig` block still holding placeholders)
+  // is enough to break initialization even if apiKey looks right.
+  function isPlaceholder(v){ return !v || /^YOUR_/.test(String(v)); }
+  var missingFields = Object.keys(firebaseConfig).filter(function(k){ return isPlaceholder(firebaseConfig[k]); });
+  var configured = missingFields.length === 0;
   if(!configured){
     document.getElementById('root').innerHTML =
       '<div class="w-configwarn"><h2 style="margin-bottom:8px;">One setup step left</h2>'+
       '<p>This page needs your Firebase project\'s config. Open <code>public/index.html</code>, '+
       'find the <code>firebaseConfig</code> object near the top of the script, and paste in the '+
       'values from <b>Firebase Console → Project settings → General → Your apps → Web app</b>. '+
-      'Then redeploy with <code>firebase deploy --only hosting</code>.</p></div>';
+      'Then redeploy with <code>firebase deploy --only hosting</code>.</p>'+
+      '<p style="margin-top:10px;"><b>Still using placeholder values for:</b> '+missingFields.map(function(k){return '<code>'+k+'</code>';}).join(', ')+
+      '. If you\'ve already edited all of these, check for a second <code>firebaseConfig</code> block '+
+      'further down the file — a leftover duplicate will silently override your edit.</p></div>';
+    console.warn('Warren: firebaseConfig has placeholder values for:', missingFields);
     return;
   }
 
