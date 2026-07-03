@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Warren — Herd Ledger</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+*{box-sizing:border-box;}
+html,body{margin:0;height:100%;background:#F3EEE3;}
+:root{
+  --bg:#F3EEE3; --surface:#FFFFFF; --surface-alt:#EAE2D0; --ink:#2C2620; --ink-muted:#6B6255;
+  --moss:#4B5D3A; --moss-light:#7C9268; --barn:#8A3324; --clay:#C97B5B; --line:#D8CDB8;
+  --warn:#B4592B; --grey:#9A9284; --radius:6px;
+}
+body{font-family:'Inter',sans-serif;color:var(--ink);}
+h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
+.mono{font-family:'JetBrains Mono',monospace;}
+
+.warren-app{min-height:100vh;display:flex;}
+.w-sidebar{width:210px;flex-shrink:0;background:var(--surface-alt);border-right:1px solid var(--line);padding:20px 0;display:flex;flex-direction:column;}
+.w-brand{display:flex;align-items:center;gap:8px;padding:0 18px 14px 18px;border-bottom:1px solid var(--line);margin-bottom:10px;}
+.w-brand h1{font-size:1.35rem;color:var(--barn);letter-spacing:.5px;}
+.w-brand span{display:block;font-size:.68rem;color:var(--ink-muted);text-transform:uppercase;letter-spacing:1.5px;margin-top:1px;}
+.w-farmswitch{padding:0 14px 14px 14px;border-bottom:1px solid var(--line);margin-bottom:10px;}
+.w-farmswitch select{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:4px;background:var(--bg);font-size:.8rem;font-family:'Inter',sans-serif;}
+.w-farmswitch .role{font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-muted);margin-top:6px;}
+.w-nav{display:flex;flex-direction:column;gap:2px;padding:0 10px;}
+.w-navitem{display:flex;align-items:center;gap:9px;padding:9px 10px;border-left:3px solid transparent;font-size:.86rem;font-weight:500;color:var(--ink-muted);cursor:pointer;border-radius:0 4px 4px 0;background:none;text-align:left;width:100%;font-family:'Inter',sans-serif;}
+.w-navitem:hover{background:rgba(0,0,0,0.04);color:var(--ink);}
+.w-navitem.active{border-left-color:var(--barn);color:var(--ink);background:var(--surface);font-weight:600;}
+.w-navitem svg{width:15px;height:15px;flex-shrink:0;opacity:.75;}
+.w-sidefoot{margin-top:auto;padding:14px 18px 0 18px;border-top:1px solid var(--line);font-size:.72rem;color:var(--grey);}
+.w-sidefoot button{margin-top:8px;}
+
+.w-main{flex:1;padding:22px 26px;overflow-y:auto;max-height:100vh;}
+.w-headrow{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
+.w-headrow h2{font-size:1.4rem;}
+.w-sub{color:var(--ink-muted);font-size:.82rem;margin-top:2px;}
+
+.w-btn{font-family:'Inter',sans-serif;font-weight:600;font-size:.82rem;padding:8px 14px;border-radius:var(--radius);border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+.w-btn-primary{background:var(--moss);color:#fff;}
+.w-btn-primary:hover{background:#3d4c30;}
+.w-btn-ghost{background:transparent;border-color:var(--line);color:var(--ink);}
+.w-btn-ghost:hover{background:var(--surface-alt);}
+.w-btn-danger{background:transparent;border-color:var(--barn);color:var(--barn);}
+.w-btn-danger:hover{background:var(--barn);color:#fff;}
+.w-btn-sm{padding:5px 9px;font-size:.72rem;}
+.w-btn:disabled{opacity:.5;cursor:not-allowed;}
+
+.w-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:22px;}
+.w-stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;}
+.w-stat .n{font-family:'JetBrains Mono',monospace;font-size:1.6rem;font-weight:700;color:var(--moss);}
+.w-stat .l{font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--ink-muted);margin-top:2px;}
+
+.w-alert{display:flex;gap:10px;align-items:flex-start;background:#FBF1E8;border:1px solid var(--clay);border-left:4px solid var(--warn);border-radius:var(--radius);padding:10px 13px;margin-bottom:9px;font-size:.82rem;}
+.w-alert b{color:var(--barn);}
+
+.w-panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;}
+.w-panel h3{font-size:1rem;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line);}
+
+.w-table{width:100%;border-collapse:collapse;font-size:.84rem;}
+.w-table th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-muted);padding:6px 8px;border-bottom:1px solid var(--line);font-weight:600;}
+.w-table td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle;}
+.w-table tr:hover td{background:rgba(75,93,58,0.04);}
+.w-table tr:last-child td{border-bottom:none;}
+.w-empty{padding:30px 10px;text-align:center;color:var(--ink-muted);}
+.w-empty p{margin-bottom:12px;font-size:.86rem;}
+
+.eartag{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:.72rem;font-weight:700;padding:3px 9px 3px 11px;border-radius:2px 9px 9px 2px;position:relative;color:#fff;white-space:nowrap;}
+.eartag::before{content:'';position:absolute;left:1px;top:50%;transform:translateY(-50%);width:5px;height:5px;background:var(--bg);border-radius:50%;}
+.tag-active{background:var(--moss);} .tag-sold{background:var(--clay);} .tag-deceased{background:var(--grey);} .tag-retired{background:#7A6E5C;}
+
+.w-pill{font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;padding:2px 8px;border-radius:20px;font-weight:600;}
+.pill-moss{background:rgba(75,93,58,.14);color:var(--moss);}
+.pill-clay{background:rgba(201,123,91,.18);color:var(--barn);}
+.pill-grey{background:rgba(154,146,132,.2);color:var(--grey);}
+.pill-warn{background:rgba(180,89,43,.15);color:var(--warn);}
+
+.w-link{color:var(--moss);cursor:pointer;text-decoration:underline;font-weight:500;}
+.w-link:hover{color:var(--barn);}
+
+.w-overlay{position:fixed;inset:0;background:rgba(44,38,32,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
+.w-modal{background:var(--surface);border-radius:8px;max-width:480px;width:100%;max-height:85vh;overflow-y:auto;padding:20px 22px;border:1px solid var(--line);}
+.w-modal h3{font-size:1.1rem;margin-bottom:14px;}
+.w-field{margin-bottom:12px;}
+.w-field label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-muted);margin-bottom:4px;font-weight:600;}
+.w-field input,.w-field select,.w-field textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;font-family:'Inter',sans-serif;font-size:.86rem;background:var(--bg);color:var(--ink);}
+.w-field textarea{resize:vertical;min-height:50px;}
+.w-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.w-modalfoot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line);}
+.w-detailgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;font-size:.85rem;margin-bottom:6px;}
+.w-detailgrid .k{color:var(--ink-muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;}
+
+.w-authwrap{max-width:380px;margin:70px auto;padding:0 16px;}
+.w-authcard{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:28px 26px;}
+.w-authcard h2{margin-bottom:4px;}
+.w-authtabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--line);}
+.w-authtab{flex:1;text-align:center;padding:9px;font-size:.82rem;font-weight:600;color:var(--ink-muted);cursor:pointer;border-bottom:2px solid transparent;}
+.w-authtab.active{color:var(--barn);border-bottom-color:var(--barn);}
+.w-autherr{background:#FBF1E8;border:1px solid var(--clay);color:var(--barn);border-radius:4px;padding:8px 10px;font-size:.78rem;margin-bottom:12px;}
+.w-farmpick{max-width:460px;margin:70px auto;padding:0 16px;}
+.w-farmcard{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
+.w-farmcard:hover{border-color:var(--moss);}
+
+.w-toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:#fff;padding:10px 16px;border-radius:6px;font-size:.85rem;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:320px;}
+.w-toast.error{background:var(--barn);}
+.w-loading{padding:60px;text-align:center;color:var(--ink-muted);}
+.w-configwarn{max-width:520px;margin:70px auto;padding:20px;background:#FBF1E8;border:1px solid var(--clay);border-radius:8px;font-size:.86rem;line-height:1.6;}
+.w-configwarn code{background:rgba(0,0,0,.06);padding:1px 5px;border-radius:3px;}
+
+@media (max-width:640px){
+  .warren-app{flex-direction:column;}
+  .w-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;padding:10px;}
+  .w-brand,.w-farmswitch{width:100%;}
+  .w-nav{flex-direction:row;flex-wrap:wrap;}
+  .w-sidefoot{display:none;}
+  .w-main{max-height:none;}
+  .w-row2{grid-template-columns:1fr;}
+  .w-detailgrid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- Firebase compat SDKs: simplest to embed without a build step -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
+
+<script>
+(function(){
+
+  // ============ FIREBASE CONFIG ============
+  // Paste this from Firebase Console → Project settings → General →
+  // "Your apps" → Web app → SDK setup and configuration.
+  var firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+
+  var configured = firebaseConfig.apiKey !== 'YOUR_API_KEY';
+  if(!configured){
+    document.getElementById('root').innerHTML =
+      '<div class="w-configwarn"><h2 style="margin-bottom:8px;">One setup step left</h2>'+
+      '<p>This page needs your Firebase project\'s config. Open <code>public/index.html</code>, '+
+      'find the <code>firebaseConfig</code> object near the top of the script, and paste in the '+
+      'values from <b>Firebase Console → Project settings → General → Your apps → Web app</b>. '+
+      'Then redeploy with <code>firebase deploy --only hosting</code>.</p></div>';
+    return;
+  }
+
+  firebase.initializeApp(firebaseConfig);
+  var auth = firebase.auth();
+  var db = firebase.firestore();
+  var fx = firebase.functions();
+
+  var CURRENCY_SYMBOLS = {USD:'$',EUR:'€',GBP:'£',ZAR:'R',SZL:'L',KES:'KSh',NGN:'₦',GHS:'GH₵',INR:'₹',AUD:'A$',CAD:'C$',BWP:'P',ZMW:'K'};
+  var CURRENCIES = ['USD','EUR','GBP','ZAR','SZL','KES','NGN','GHS','INR','AUD','CAD','BWP','ZMW'];
+  var ROLE_RANK = {viewer:0, worker:1, supervisor:2, farm_manager:3};
+  function can(minRole){ return (ROLE_RANK[currentRole]||0) >= ROLE_RANK[minRole]; }
+
+  var FS_COLLECTION = {rabbits:'rabbits', cages:'cages', litters:'litters', health:'health', feedStock:'feedStock', ledger:'ledger'};
+
+  var currentUser = null;
+  var farms = [];
+  var currentFarm = null; // {id,name,currency,role}
+  var currentRole = 'viewer';
+  var state = {rabbits:[], cages:[], litters:[], health:[], feedStock:[], ledger:[]};
+  var current = 'dashboard';
+  var GEST_DAYS = 31;
+  var appScreen = 'auth'; // auth | pickfarm | newfarm | app
+  var authMode = 'login';
+  var authError = '';
+  var loading = false;
+
+  // ============ HELPERS ============
+  function todayStr(){ return new Date().toISOString().slice(0,10); }
+  function fmtDate(d){ if(!d) return '—'; var dt=new Date(d+'T00:00:00'); if(isNaN(dt)) return d; return dt.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); }
+  function addDays(d,n){ var dt=new Date(d+'T00:00:00'); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10); }
+  function daysFromToday(d){ if(!d) return 999; var a=new Date(todayStr()+'T00:00:00'); var b=new Date(d+'T00:00:00'); return Math.round((b-a)/86400000); }
+  function esc(s){ return (s===undefined||s===null)?'':String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function money(n){ var sym = CURRENCY_SYMBOLS[currentFarm&&currentFarm.currency] || ((currentFarm&&currentFarm.currency)||'USD')+' '; return sym+(Number(n)||0).toFixed(2); }
+  function rabbitById(id){ return state.rabbits.find(function(r){return r.id===id;}); }
+  function cageById(id){ return state.cages.find(function(c){return c.id===id;}); }
+  function feedItemById(id){ return state.feedStock.find(function(f){return f.id===id;}); }
+  function isLowStock(item){ return Number(item.quantity) <= Number(item.reorderLevel); }
+  function snapToArr(snap){ return snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }); }
+
+  function showToast(msg, isError){
+    var el = document.createElement('div');
+    el.className = 'w-toast'+(isError?' error':'');
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(function(){ el.remove(); }, 3800);
+  }
+  function friendlyError(e){
+    var msg = (e && e.message) || String(e);
+    return msg.replace(/^Firebase:\s*/,'').replace(/\(auth\/[a-z-]+\)\.?/,'').trim();
+  }
+
+  // ============ AUTH ============
+  auth.onAuthStateChanged(function(user){
+    if(user){ currentUser = user; afterLogin(); }
+    else { currentUser=null; farms=[]; currentFarm=null; appScreen='auth'; renderRoot(); }
+  });
+
+  async function handleAuthSubmit(mode, formData){
+    authError='';
+    try{
+      var email = formData.get('email'), password = formData.get('password');
+      if(mode==='register'){
+        var cred = await auth.createUserWithEmailAndPassword(email, password);
+        await cred.user.updateProfile({displayName: formData.get('name')||''});
+      } else {
+        await auth.signInWithEmailAndPassword(email, password);
+      }
+      // onAuthStateChanged fires afterLogin()
+    }catch(e){
+      authError = friendlyError(e);
+      renderRoot();
+    }
+  }
+
+  async function afterLogin(){
+    try{
+      var snap = await db.collection('memberships').where('uid','==',currentUser.uid).get();
+      farms = snap.docs.map(function(d){ var m=d.data(); return {id:m.farmId, name:m.farmName, currency:m.currency, role:m.role}; });
+      farms.sort(function(a,b){ return a.name.localeCompare(b.name); });
+      if(farms.length===0){ appScreen='newfarm'; renderRoot(); }
+      else if(farms.length===1){ await selectFarm(farms[0]); }
+      else { appScreen='pickfarm'; renderRoot(); }
+    }catch(e){ showToast(friendlyError(e), true); appScreen='pickfarm'; renderRoot(); }
+  }
+
+  async function selectFarm(farm){
+    currentFarm = farm; currentRole = farm.role; appScreen='app'; current='dashboard';
+    renderRoot();
+    await loadFarmData();
+  }
+
+  function logout(){ auth.signOut(); appScreen='auth'; authMode='login'; authError=''; }
+
+  async function createFarm(name, currency){
+    try{
+      var createFarmFn = fx.httpsCallable('createFarm');
+      var res = await createFarmFn({name:name, currency:currency});
+      var farm = res.data;
+      farms.push(farm);
+      await selectFarm(farm);
+      showToast('Farm created — welcome to Warren!');
+    }catch(e){ showToast(friendlyError(e), true); renderRoot(); }
+  }
+
+  // ============ DATA LOADING ============
+  async function loadFarmData(){
+    loading = true; renderRoot();
+    try{
+      var base = db.collection('farms').doc(currentFarm.id);
+      var results = await Promise.all([
+        base.collection('rabbits').orderBy('createdAt','desc').get(),
+        base.collection('cages').orderBy('createdAt','desc').get(),
+        base.collection('litters').orderBy('createdAt','desc').get(),
+        base.collection('health').orderBy('createdAt','desc').get(),
+        base.collection('feedStock').orderBy('createdAt','desc').get(),
+        base.collection('ledger').orderBy('createdAt','desc').get()
+      ]);
+      state = {rabbits:snapToArr(results[0]), cages:snapToArr(results[1]), litters:snapToArr(results[2]),
+        health:snapToArr(results[3]), feedStock:snapToArr(results[4]), ledger:snapToArr(results[5])};
+    }catch(e){ showToast(friendlyError(e), true); }
+    loading = false; renderRoot();
+  }
+  async function refetch(key){
+    var snap = await db.collection('farms').doc(currentFarm.id).collection(FS_COLLECTION[key]).orderBy('createdAt','desc').get();
+    state[key] = snapToArr(snap);
+  }
+  async function createItem(key, body){
+    var col = db.collection('farms').doc(currentFarm.id).collection(FS_COLLECTION[key]);
+    var payload = Object.assign({}, body, {createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+    var ref = await col.add(payload);
+    var doc = await ref.get();
+    var row = Object.assign({id:doc.id}, doc.data());
+    state[key].unshift(row);
+    return row;
+  }
+  async function updateItem(key, id, body){
+    var ref = db.collection('farms').doc(currentFarm.id).collection(FS_COLLECTION[key]).doc(id);
+    await ref.update(body);
+    var doc = await ref.get();
+    var row = Object.assign({id:doc.id}, doc.data());
+    var idx = state[key].findIndex(function(x){return x.id===id;});
+    if(idx>-1) state[key][idx]=row;
+    return row;
+  }
+  async function deleteItemApi(key, id){
+    await db.collection('farms').doc(currentFarm.id).collection(FS_COLLECTION[key]).doc(id).delete();
+    state[key] = state[key].filter(function(x){return x.id!==id;});
+  }
+
+  // ============ ROOT RENDER ============
+  function renderRoot(){
+    var root = document.getElementById('root');
+    if(appScreen==='auth') root.innerHTML = viewAuth();
+    else if(appScreen==='newfarm') root.innerHTML = viewNewFarm();
+    else if(appScreen==='pickfarm') root.innerHTML = viewPickFarm();
+    else { root.innerHTML = viewApp(); renderMain(); }
+    wireEvents();
+  }
+  function wireEvents(){
+    var authForm = document.getElementById('w-auth-form');
+    if(authForm) authForm.onsubmit = function(e){ e.preventDefault(); handleAuthSubmit(authMode, new FormData(e.target)); };
+    var newFarmForm = document.getElementById('w-newfarm-form');
+    if(newFarmForm) newFarmForm.onsubmit = function(e){ e.preventDefault(); var f=new FormData(e.target); createFarm(f.get('name'), f.get('currency')); };
+  }
+
+  // ============ AUTH SCREEN ============
+  function viewAuth(){
+    return '<div class="w-authwrap">'+
+      '<div style="text-align:center;margin-bottom:18px;">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="#8A3324" stroke-width="1.6" width="34" height="34"><path d="M8 10c-1-3-1-6 1-7 1.2 1 1.5 3.5 1 6M16 10c1-3 1-6-1-7-1.2 1-1.5 3.5-1 6"/><ellipse cx="12" cy="14" rx="6" ry="6.5"/><circle cx="10" cy="12.5" r=".6" fill="#8A3324"/><circle cx="14" cy="12.5" r=".6" fill="#8A3324"/></svg>'+
+        '<h1 style="color:var(--barn);margin-top:6px;">Warren</h1><div style="font-size:.75rem;color:var(--ink-muted);text-transform:uppercase;letter-spacing:1.5px;">Herd Ledger</div>'+
+      '</div>'+
+      '<div class="w-authcard">'+
+        '<div class="w-authtabs">'+
+          '<div class="w-authtab '+(authMode==='login'?'active':'')+'" onclick="WApp.setAuthMode(\'login\')">Log in</div>'+
+          '<div class="w-authtab '+(authMode==='register'?'active':'')+'" onclick="WApp.setAuthMode(\'register\')">Register</div>'+
+        '</div>'+
+        (authError? '<div class="w-autherr">'+esc(authError)+'</div>' : '')+
+        '<form id="w-auth-form">'+
+          (authMode==='register'? '<div class="w-field"><label>Name</label><input name="name" required/></div>' : '')+
+          '<div class="w-field"><label>Email</label><input type="email" name="email" required/></div>'+
+          '<div class="w-field"><label>Password</label><input type="password" name="password" required minlength="6"/></div>'+
+          '<button type="submit" class="w-btn w-btn-primary" style="width:100%;justify-content:center;">'+(authMode==='login'?'Log in':'Create account')+'</button>'+
+        '</form>'+
+      '</div>'+
+    '</div>';
+  }
+  function setAuthMode(m){ authMode=m; authError=''; renderRoot(); }
+
+  // ============ FARM PICK / CREATE ============
+  function viewPickFarm(){
+    return '<div class="w-farmpick"><h2 style="margin-bottom:14px;">Choose a farm</h2>'+
+      farms.map(function(f){
+        return '<div class="w-farmcard" onclick="WApp.pickFarm(\''+f.id+'\')"><div><b>'+esc(f.name)+'</b><div style="font-size:.75rem;color:var(--ink-muted);">'+esc(f.currency)+'</div></div><span class="w-pill pill-moss">'+esc(f.role)+'</span></div>';
+      }).join('')+
+      '<button class="w-btn w-btn-ghost" style="width:100%;justify-content:center;margin-top:6px;" onclick="WApp.goNewFarm()">+ Create another farm</button>'+
+      '<button class="w-btn w-btn-ghost" style="width:100%;justify-content:center;margin-top:6px;" onclick="WApp.logout()">Log out</button>'+
+    '</div>';
+  }
+  function pickFarm(id){ var f = farms.find(function(x){return x.id===id;}); if(f) selectFarm(f); }
+  function goNewFarm(){ appScreen='newfarm'; renderRoot(); }
+  function viewNewFarm(){
+    return '<div class="w-farmpick"><div class="w-authcard">'+
+      '<h2 style="margin-bottom:4px;">Set up your farm</h2><div class="w-sub" style="margin-bottom:16px;color:var(--ink-muted);font-size:.82rem;">You\'ll be the farm manager and can invite others afterward.</div>'+
+      '<form id="w-newfarm-form">'+
+        '<div class="w-field"><label>Farm name</label><input name="name" required placeholder="e.g. Amara Rabbitry"/></div>'+
+        '<div class="w-field"><label>Currency</label><select name="currency">'+CURRENCIES.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('')+'</select></div>'+
+        '<button type="submit" class="w-btn w-btn-primary" style="width:100%;justify-content:center;">Create farm</button>'+
+      '</form>'+
+      (farms.length? '<button class="w-btn w-btn-ghost" style="width:100%;justify-content:center;margin-top:8px;" onclick="WApp.backToPick()">Back to my farms</button>' : '')+
+    '</div></div>';
+  }
+  function backToPick(){ appScreen='pickfarm'; renderRoot(); }
+
+  // ============ MAIN APP SHELL ============
+  var VIEWS = [
+    {id:'dashboard', label:'Dashboard', icon:'M3 11l9-8 9 8M5 10v10h14V10'},
+    {id:'herd', label:'Herd', icon:'M4 20c0-4 4-6 8-6s8 2 8 6M12 12a4 4 0 100-8 4 4 0 000 8z'},
+    {id:'breeding', label:'Breeding', icon:'M12 21s-7-4.5-9.5-9A5.5 5.5 0 0112 5a5.5 5.5 0 019.5 7c-2.5 4.5-9.5 9-9.5 9z'},
+    {id:'health', label:'Health', icon:'M12 3v18M3 12h18'},
+    {id:'housing', label:'Housing', icon:'M3 10l9-7 9 7v10H3z'},
+    {id:'feed', label:'Feed', icon:'M6 3h12l1 4H5l1-4zM5 7l1.5 13a1 1 0 001 1h9a1 1 0 001-1L19 7M9 11h6M9 15h6'},
+    {id:'ledger', label:'Ledger', icon:'M4 4h16v16H4zM4 9h16M9 9v11'},
+    {id:'team', label:'Team', icon:'M17 20v-1a4 4 0 00-4-4H7a4 4 0 00-4 4v1M13 8a4 4 0 11-8 0 4 4 0 018 0zM22 20v-1a3.5 3.5 0 00-2.7-3.4M16 4.2a3.5 3.5 0 010 6.7'}
+  ];
+
+  function viewApp(){
+    return '<div class="warren-app">'+
+      '<div class="w-sidebar">'+
+        '<div class="w-brand"><svg viewBox="0 0 24 24" fill="none" stroke="#8A3324" stroke-width="1.8" width="26" height="26"><path d="M8 10c-1-3-1-6 1-7 1.2 1 1.5 3.5 1 6M16 10c1-3 1-6-1-7-1.2 1-1.5 3.5-1 6"/><ellipse cx="12" cy="14" rx="6" ry="6.5"/><circle cx="10" cy="12.5" r=".6" fill="#8A3324"/><circle cx="14" cy="12.5" r=".6" fill="#8A3324"/></svg><div><h1>Warren</h1><span>Herd Ledger</span></div></div>'+
+        '<div class="w-farmswitch">'+
+          (farms.length>1? ('<select onchange="WApp.switchFarm(this.value)">'+farms.map(function(f){return '<option value="'+f.id+'" '+(f.id===currentFarm.id?'selected':'')+'>'+esc(f.name)+'</option>';}).join('')+'</select>') : ('<div style="font-weight:600;font-size:.9rem;">'+esc(currentFarm.name)+'</div>'))+
+          '<div class="role">'+esc(currentRole).replace('_',' ')+'</div>'+
+        '</div>'+
+        '<div class="w-nav" id="w-nav"></div>'+
+        '<div class="w-sidefoot">'+esc(currentUser.displayName||currentUser.email)+'<br/>'+
+          '<button class="w-btn w-btn-ghost w-btn-sm" onclick="WApp.goNewFarm()">+ New farm</button> '+
+          '<button class="w-btn w-btn-ghost w-btn-sm" onclick="WApp.logout()">Log out</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="w-main" id="w-main"></div>'+
+    '</div>'+
+    '<div id="w-modal-root"></div>';
+  }
+  async function switchFarm(id){ var f = farms.find(function(x){return x.id===id;}); if(f) await selectFarm(f); }
+
+  function renderNav(){
+    var el = document.getElementById('w-nav'); if(!el) return;
+    el.innerHTML = VIEWS.map(function(v){
+      return '<button class="w-navitem '+(current===v.id?'active':'')+'" onclick="WApp.go(\''+v.id+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="'+v.icon+'"/></svg><span>'+v.label+'</span></button>';
+    }).join('');
+  }
+  function go(view){ current = view; renderMain(); }
+  function renderMain(){
+    renderNav();
+    var main = document.getElementById('w-main'); if(!main) return;
+    if(loading){ main.innerHTML = '<div class="w-loading">Loading herd ledger…</div>'; return; }
+    if(current==='dashboard') main.innerHTML = viewDashboard();
+    else if(current==='herd') main.innerHTML = viewHerd();
+    else if(current==='breeding') main.innerHTML = viewBreeding();
+    else if(current==='health') main.innerHTML = viewHealth();
+    else if(current==='housing') main.innerHTML = viewHousing();
+    else if(current==='feed') main.innerHTML = viewFeed();
+    else if(current==='ledger') main.innerHTML = viewLedger();
+    else if(current==='team') { main.innerHTML = '<div class="w-loading">Loading team…</div>'; loadAndRenderTeam(); }
+  }
+  function stat(n,l){ return '<div class="w-stat"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
+
+  // ============ DASHBOARD ============
+  function viewDashboard(){
+    var active = state.rabbits.filter(function(r){return r.status==='active';});
+    var does = active.filter(function(r){return r.sex==='doe';}).length;
+    var bucks = active.filter(function(r){return r.sex==='buck';}).length;
+    var expecting = state.litters.filter(function(l){return !l.kindleDate;});
+    var alerts = [];
+    expecting.forEach(function(l){
+      var days = daysFromToday(l.dueDate);
+      if(days<=3){
+        var doe = rabbitById(l.doeId);
+        alerts.push('<div class="w-alert">🐇 <div><b>'+esc(doe?doe.tag:'?')+'</b> is due to kindle '+(days<0?('<b>'+Math.abs(days)+' days ago</b> — check nest box'):(days===0?'<b>today</b>':'in <b>'+days+' days</b>'))+' ('+fmtDate(l.dueDate)+')</div></div>');
+      }
+    });
+    state.health.forEach(function(h){
+      if(h.nextDue){
+        var days = daysFromToday(h.nextDue);
+        if(days<=7 && days>=0){
+          var r = rabbitById(h.rabbitId);
+          alerts.push('<div class="w-alert">💉 <div><b>'+esc(r?r.tag:'?')+'</b> — '+esc(h.type)+' due '+(days===0?'today':'in '+days+' days')+' ('+fmtDate(h.nextDue)+')</div></div>');
+        }
+      }
+    });
+    state.cages.forEach(function(c){
+      var occ = active.filter(function(r){return r.cageId===c.id;}).length;
+      if(occ>c.capacity) alerts.push('<div class="w-alert">🏠 <div>Hutch <b>'+esc(c.label)+'</b> is over capacity ('+occ+'/'+c.capacity+')</div></div>');
+    });
+    var lowStock = state.feedStock.filter(isLowStock);
+    lowStock.forEach(function(f){ alerts.push('<div class="w-alert">🌾 <div><b>'+esc(f.name)+'</b> is low: '+f.quantity+' '+esc(f.unit)+' left (reorder at '+f.reorderLevel+')</div></div>'); });
+
+    var emptyState = state.rabbits.length===0 ? ('<div class="w-panel w-empty"><p>Your herd ledger is empty. Add your first rabbit to get started.</p>'+(can('worker')?'<button class="w-btn w-btn-primary" onclick="WApp.openRabbitModal()">+ Add a rabbit</button>':'')+'</div>') : '';
+
+    return '<div class="w-headrow"><div><h2>Dashboard</h2><div class="w-sub">'+esc(currentFarm.name)+' &middot; '+fmtDate(todayStr())+'</div></div></div>'+
+      emptyState+
+      '<div class="w-stats">'+stat(active.length,'Active rabbits')+stat(does,'Does')+stat(bucks,'Bucks')+stat(expecting.length,'Litters expecting')+stat(state.cages.length,'Hutches')+stat(lowStock.length,'Low feed items')+'</div>'+
+      (alerts.length? ('<div class="w-panel"><h3>Attention needed</h3>'+alerts.join('')+'</div>') : '')+
+      '<div class="w-panel"><h3>Recent activity</h3>'+recentActivity()+'</div>';
+  }
+  function recentActivity(){
+    var items = [];
+    state.rabbits.forEach(function(r){ items.push({d:r.dob||todayStr(), text:'Rabbit '+r.tag+' ('+r.name+') added to herd'}); });
+    state.litters.forEach(function(l){ if(l.kindleDate){ var doe=rabbitById(l.doeId); items.push({d:l.kindleDate, text:(doe?doe.tag:'?')+' kindled '+(l.kitsBorn||0)+' kits'}); } });
+    state.ledger.forEach(function(e){ items.push({d:e.date, text:e.type+': '+e.category+' — '+money(e.amount)}); });
+    items.sort(function(a,b){ return new Date(b.d)-new Date(a.d); });
+    items = items.slice(0,8);
+    if(!items.length) return '<div class="w-empty"><p>Nothing recorded yet.</p></div>';
+    return '<table class="w-table"><tbody>'+items.map(function(i){return '<tr><td class="mono" style="width:110px;color:var(--ink-muted);font-size:.76rem;">'+fmtDate(i.d)+'</td><td>'+esc(i.text)+'</td></tr>';}).join('')+'</tbody></table>';
+  }
+
+  // ============ HERD ============
+  var herdFilter = {status:'all', sex:'all', q:''};
+  function viewHerd(){
+    var rows = state.rabbits.filter(function(r){
+      if(herdFilter.status!=='all' && r.status!==herdFilter.status) return false;
+      if(herdFilter.sex!=='all' && r.sex!==herdFilter.sex) return false;
+      if(herdFilter.q && ((r.tag||'')+' '+(r.name||'')+' '+(r.breed||'')).toLowerCase().indexOf(herdFilter.q.toLowerCase())===-1) return false;
+      return true;
+    });
+    return '<div class="w-headrow"><div><h2>Herd</h2><div class="w-sub">'+state.rabbits.length+' rabbits total</div></div>'+
+      (can('worker')?'<button class="w-btn w-btn-primary" onclick="WApp.openRabbitModal()">+ Add rabbit</button>':'')+'</div>'+
+      '<div class="w-panel">'+
+        '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">'+
+          '<input placeholder="Search tag, name, breed…" value="'+esc(herdFilter.q)+'" oninput="WApp.setHerdFilter(\'q\',this.value)" style="flex:1;min-width:160px;padding:7px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);"/>'+
+          selectHtml('WApp.setHerdFilter(\'status\',this.value)', ['all','active','sold','retired','deceased'], herdFilter.status)+
+          selectHtml('WApp.setHerdFilter(\'sex\',this.value)', ['all','doe','buck'], herdFilter.sex)+
+        '</div>'+
+        (rows.length? herdTable(rows) : '<div class="w-empty"><p>No rabbits match these filters.</p></div>')+
+      '</div>';
+  }
+  function selectHtml(onchange, opts, val){
+    return '<select onchange="'+onchange+'" style="padding:7px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);">'+
+      opts.map(function(o){return '<option value="'+o+'" '+(o===val?'selected':'')+'>'+(o==='all'?'All':o)+'</option>';}).join('')+
+    '</select>';
+  }
+  function eartag(r){ return '<span class="eartag tag-'+(r.status||'active')+'">'+esc(r.tag)+'</span>'; }
+  function statusPill(status){ var map={active:'pill-moss',sold:'pill-clay',deceased:'pill-grey',retired:'pill-warn'}; return '<span class="w-pill '+(map[status]||'pill-grey')+'">'+esc(status)+'</span>'; }
+
+  function herdTable(rows){
+    return '<table class="w-table"><thead><tr><th>Tag</th><th>Name</th><th>Breed</th><th>Sex</th><th>DOB</th><th>Status</th><th>Hutch</th><th></th></tr></thead><tbody>'+
+      rows.map(function(r){
+        var cage = cageById(r.cageId);
+        return '<tr><td>'+eartag(r)+'</td><td><span class="w-link" onclick="WApp.openRabbitDetail(\''+r.id+'\')">'+esc(r.name)+'</span></td>'+
+          '<td>'+esc(r.breed)+'</td><td style="text-transform:capitalize;">'+esc(r.sex)+'</td>'+
+          '<td class="mono" style="font-size:.78rem;">'+fmtDate(r.dob)+'</td><td>'+statusPill(r.status)+'</td>'+
+          '<td>'+esc(cage?cage.label:'—')+'</td>'+
+          '<td>'+(can('worker')?'<button class="w-btn w-btn-ghost w-btn-sm" onclick="WApp.openRabbitModal(\''+r.id+'\')">Edit</button>':'')+'</td></tr>';
+      }).join('')+'</tbody></table>';
+  }
+  function rabbitOptions(selectedId, excludeId, sexFilter){
+    var opts = state.rabbits.filter(function(r){ return r.id!==excludeId && (!sexFilter || r.sex===sexFilter); });
+    return '<option value="">— none —</option>'+opts.map(function(r){return '<option value="'+r.id+'" '+(r.id===selectedId?'selected':'')+'>'+esc(r.tag)+' — '+esc(r.name)+'</option>';}).join('');
+  }
+  function cageOptions(selectedId){
+    return '<option value="">— unassigned —</option>'+state.cages.map(function(c){return '<option value="'+c.id+'" '+(c.id===selectedId?'selected':'')+'>'+esc(c.label)+'</option>';}).join('');
+  }
+
+  function openRabbitModal(id){
+    var r = id ? rabbitById(id) : null;
+    var nextTag = 'R-'+String(state.rabbits.length+1).padStart(3,'0');
+    var html = '<div class="w-modal"><h3>'+(r?'Edit rabbit':'Add rabbit')+'</h3><form id="w-rabbit-form">'+
+      '<div class="w-row2"><div class="w-field"><label>Ear tag</label><input name="tag" required value="'+esc(r?r.tag:nextTag)+'"/></div>'+
+      '<div class="w-field"><label>Name</label><input name="name" required value="'+esc(r?r.name:'')+'"/></div></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Breed</label><input name="breed" list="w-breeds" value="'+esc(r?r.breed:'')+'"/>'+
+        '<datalist id="w-breeds"><option>New Zealand White</option><option>Californian</option><option>Flemish Giant</option><option>Rex</option><option>Dutch</option><option>Mini Lop</option><option>English Angora</option><option>Chinchilla</option></datalist></div>'+
+      '<div class="w-field"><label>Sex</label><select name="sex"><option value="doe" '+(r&&r.sex==='doe'?'selected':'')+'>Doe (female)</option><option value="buck" '+(r&&r.sex==='buck'?'selected':'')+'>Buck (male)</option></select></div></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Date of birth</label><input type="date" name="dob" value="'+esc(r?r.dob:'')+'"/></div>'+
+      '<div class="w-field"><label>Status</label><select name="status"><option value="active" '+(!r||r.status==='active'?'selected':'')+'>Active</option><option value="retired" '+(r&&r.status==='retired'?'selected':'')+'>Retired</option><option value="sold" '+(r&&r.status==='sold'?'selected':'')+'>Sold</option><option value="deceased" '+(r&&r.status==='deceased'?'selected':'')+'>Deceased</option></select></div></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Sire (father)</label><select name="sireId">'+rabbitOptions(r?r.sireId:'', r?r.id:null,'buck')+'</select></div>'+
+      '<div class="w-field"><label>Dam (mother)</label><select name="damId">'+rabbitOptions(r?r.damId:'', r?r.id:null,'doe')+'</select></div></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Hutch</label><select name="cageId">'+cageOptions(r?r.cageId:'')+'</select></div>'+
+      '<div class="w-field"><label>Weight (lb)</label><input type="number" step="0.1" name="weight" value="'+(r&&r.weight!=null?r.weight:'')+'"/></div></div>'+
+      '<div class="w-field"><label>Notes</label><textarea name="notes">'+esc(r?r.notes:'')+'</textarea></div>'+
+      '<div class="w-modalfoot">'+(r&&can('supervisor')?'<button type="button" class="w-btn w-btn-danger" onclick="WApp.deleteRabbit(\''+r.id+'\')">Delete</button>':'<span></span>')+
+      '<span style="flex:1"></span><button type="button" class="w-btn w-btn-ghost" onclick="WApp.closeModal()">Cancel</button>'+
+      '<button type="submit" class="w-btn w-btn-primary">Save rabbit</button></div></form></div>';
+    showModal(html);
+    document.getElementById('w-rabbit-form').onsubmit = async function(e){
+      e.preventDefault(); var f = new FormData(e.target);
+      var body = {tag:f.get('tag'), name:f.get('name'), breed:f.get('breed'), sex:f.get('sex'), dob:f.get('dob')||null,
+        status:f.get('status'), sireId:f.get('sireId')||null, damId:f.get('damId')||null, cageId:f.get('cageId')||null,
+        weight:f.get('weight')?parseFloat(f.get('weight')):null, notes:f.get('notes')};
+      try{ if(r) await updateItem('rabbits', r.id, body); else await createItem('rabbits', body); closeModal(); renderMain(); showToast('Rabbit saved'); }
+      catch(err){ showToast(friendlyError(err), true); }
+    };
+  }
+  async function deleteRabbit(id){
+    if(!confirm('Remove this rabbit from the herd ledger? This cannot be undone.')) return;
+    try{ await deleteItemApi('rabbits', id); closeModal(); renderMain(); showToast('Rabbit removed'); }
+    catch(err){ showToast(friendlyError(err), true); }
+  }
+  function openRabbitDetail(id){
+    var r = rabbitById(id); if(!r) return;
+    var sire = r.sireId?rabbitById(r.sireId):null;
+    var dam = r.damId?rabbitById(r.damId):null;
+    var cage = cageById(r.cageId);
+    var recs = state.health.filter(function(h){return h.rabbitId===id;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    var html = '<div class="w-modal" style="max-width:560px;">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><h3>'+esc(r.name)+' '+eartag(r)+'</h3>'+statusPill(r.status)+'</div>'+
+      '<div class="w-detailgrid" style="margin-top:12px;">'+det('Breed', r.breed)+det('Sex', r.sex)+det('Born', fmtDate(r.dob))+det('Weight', r.weight?r.weight+' lb':'—')+det('Hutch', cage?cage.label:'Unassigned')+det('Sire', sire?sire.tag+' — '+sire.name:'Unknown')+det('Dam', dam?dam.tag+' — '+dam.name:'Unknown')+'</div>'+
+      (sire||dam? ('<div style="margin-top:6px;padding-top:10px;border-top:1px solid var(--line);"><div class="k" style="font-size:.72rem;text-transform:uppercase;color:var(--ink-muted);letter-spacing:.5px;margin-bottom:6px;">Grandparents</div><div class="w-detailgrid">'+det("Sire's sire", grand(sire,'sireId'))+det("Sire's dam", grand(sire,'damId'))+det("Dam's sire", grand(dam,'sireId'))+det("Dam's dam", grand(dam,'damId'))+'</div></div>') : '')+
+      (r.notes? '<div style="margin-top:10px;font-size:.85rem;color:var(--ink-muted);"><em>'+esc(r.notes)+'</em></div>':'')+
+      '<div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--line);"><div class="k" style="font-size:.72rem;text-transform:uppercase;color:var(--ink-muted);letter-spacing:.5px;margin-bottom:6px;">Health history</div>'+
+      (recs.length? recs.map(function(h){return '<div style="font-size:.82rem;padding:4px 0;">'+fmtDate(h.date)+' — <b>'+esc(h.type)+'</b> '+esc(h.description||'')+'</div>';}).join('') : '<div style="font-size:.82rem;color:var(--ink-muted);">No health records yet.</div>')+'</div>'+
+      '<div class="w-modalfoot"><button class="w-btn w-btn-ghost" onclick="WApp.closeModal()">Close</button>'+(can('worker')?'<button class="w-btn w-btn-primary" onclick="WApp.closeModal();WApp.openRabbitModal(\''+r.id+'\')">Edit</button>':'')+'</div>'+
+    '</div>';
+    showModal(html);
+  }
+  function det(k,v){ return '<div><div class="k">'+k+'</div><div>'+esc(v)+'</div></div>'; }
+  function grand(parent, key){ if(!parent || !parent[key]) return 'Unknown'; var g = rabbitById(parent[key]); return g ? g.tag+' — '+g.name : 'Unknown'; }
+
+  // ============ BREEDING ============
+  function viewBreeding(){
+    var rows = state.litters.slice().sort(function(a,b){return new Date(b.matingDate)-new Date(a.matingDate);});
+    return '<div class="w-headrow"><div><h2>Breeding</h2><div class="w-sub">'+state.litters.length+' pairings recorded</div></div>'+
+      (can('worker')?'<button class="w-btn w-btn-primary" onclick="WApp.openLitterModal()">+ Record pairing</button>':'')+'</div>'+
+      '<div class="w-panel">'+(rows.length? litterTable(rows) : '<div class="w-empty"><p>No breedings recorded yet.</p></div>')+'</div>';
+  }
+  function litterStatus(l){
+    if(l.weanDate) return {label:'Weaned',cls:'pill-moss'};
+    if(l.kindleDate) return {label:'Nursing',cls:'pill-clay'};
+    return {label:'Expecting',cls:'pill-warn'};
+  }
+  function litterTable(rows){
+    return '<table class="w-table"><thead><tr><th>Doe</th><th>Buck</th><th>Mated</th><th>Due / Kindled</th><th>Kits</th><th>Status</th><th></th></tr></thead><tbody>'+
+      rows.map(function(l){
+        var doe=rabbitById(l.doeId), buck=rabbitById(l.buckId), st=litterStatus(l);
+        return '<tr><td>'+(doe?eartag(doe)+' '+esc(doe.name):'—')+'</td><td>'+(buck?eartag(buck)+' '+esc(buck.name):'—')+'</td>'+
+          '<td class="mono" style="font-size:.78rem;">'+fmtDate(l.matingDate)+'</td>'+
+          '<td class="mono" style="font-size:.78rem;">'+(l.kindleDate?fmtDate(l.kindleDate):fmtDate(l.dueDate)+' (due)')+'</td>'+
+          '<td>'+(l.kitsBorn!=null? l.kitsBorn+' born, '+(l.kitsAlive!=null?l.kitsAlive:l.kitsBorn)+' alive' : '—')+'</td>'+
+          '<td><span class="w-pill '+st.cls+'">'+st.label+'</span></td>'+
+          '<td>'+(can('worker')?'<button class="w-btn w-btn-ghost w-btn-sm" onclick="WApp.openLitterModal(\''+l.id+'\')">Update</button>':'')+'</td></tr>';
+      }).join('')+'</tbody></table>';
+  }
+  function openLitterModal(id){
+    var l = id ? state.litters.find(function(x){return x.id===id;}) : null;
+    var html = '<div class="w-modal"><h3>'+(l?'Update pairing':'Record pairing')+'</h3><form id="w-litter-form">'+
+      '<div class="w-row2"><div class="w-field"><label>Doe</label><select name="doeId" required>'+rabbitOptions(l?l.doeId:'', null,'doe')+'</select></div>'+
+      '<div class="w-field"><label>Buck</label><select name="buckId" required>'+rabbitOptions(l?l.buckId:'', null,'buck')+'</select></div></div>'+
+      '<div class="w-field"><label>Mating date</label><input type="date" name="matingDate" required value="'+esc(l?l.matingDate:todayStr())+'"/></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Kindle date (if born)</label><input type="date" name="kindleDate" value="'+esc(l?l.kindleDate:'')+'"/></div>'+
+      '<div class="w-field"><label>Wean date (if weaned)</label><input type="date" name="weanDate" value="'+esc(l?l.weanDate:'')+'"/></div></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Kits born</label><input type="number" name="kitsBorn" value="'+(l&&l.kitsBorn!=null?l.kitsBorn:'')+'"/></div>'+
+      '<div class="w-field"><label>Kits alive</label><input type="number" name="kitsAlive" value="'+(l&&l.kitsAlive!=null?l.kitsAlive:'')+'"/></div></div>'+
+      '<div class="w-field"><label>Notes</label><textarea name="notes">'+esc(l?l.notes:'')+'</textarea></div>'+
+      '<div class="w-modalfoot">'+(l&&can('supervisor')?'<button type="button" class="w-btn w-btn-danger" onclick="WApp.deleteLitter(\''+l.id+'\')">Delete</button>':'<span></span>')+
+      '<span style="flex:1"></span><button type="button" class="w-btn w-btn-ghost" onclick="WApp.closeModal()">Cancel</button>'+
+      '<button type="submit" class="w-btn w-btn-primary">Save</button></div></form></div>';
+    showModal(html);
+    document.getElementById('w-litter-form').onsubmit = async function(e){
+      e.preventDefault(); var f = new FormData(e.target); var matingDate = f.get('matingDate');
+      var body = {doeId:f.get('doeId'), buckId:f.get('buckId'), matingDate:matingDate, dueDate:addDays(matingDate, GEST_DAYS),
+        kindleDate:f.get('kindleDate')||null, weanDate:f.get('weanDate')||null,
+        kitsBorn:f.get('kitsBorn')?parseInt(f.get('kitsBorn')):null, kitsAlive:f.get('kitsAlive')?parseInt(f.get('kitsAlive')):null,
+        notes:f.get('notes')};
+      try{ if(l) await updateItem('litters', l.id, body); else await createItem('litters', body); closeModal(); renderMain(); showToast('Breeding record saved'); }
+      catch(err){ showToast(friendlyError(err), true); }
+    };
+  }
+  async function deleteLitter(id){
+    if(!confirm('Delete this breeding record?')) return;
+    try{ await deleteItemApi('litters', id); closeModal(); renderMain(); showToast('Record deleted'); }
+    catch(err){ showToast(friendlyError(err), true); }
+  }
+
+  // ============ HEALTH ============
+  function viewHealth(){
+    var rows = state.health.slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    return '<div class="w-headrow"><div><h2>Health</h2><div class="w-sub">'+state.health.length+' records</div></div>'+
+      (can('worker')?'<button class="w-btn w-btn-primary" onclick="WApp.openHealthModal()">+ Log record</button>':'')+'</div>'+
+      '<div class="w-panel">'+(rows.length? healthTable(rows):'<div class="w-empty"><p>No health records yet.</p></div>')+'</div>';
+  }
+  function healthTable(rows){
+    return '<table class="w-table"><thead><tr><th>Date</th><th>Rabbit</th><th>Type</th><th>Notes</th><th>Next due</th></tr></thead><tbody>'+
+      rows.map(function(h){
+        var r = rabbitById(h.rabbitId);
+        return '<tr><td class="mono" style="font-size:.78rem;">'+fmtDate(h.date)+'</td><td>'+(r?eartag(r)+' '+esc(r.name):'—')+'</td>'+
+          '<td>'+esc(h.type)+(h.weight?' ('+h.weight+' lb)':'')+'</td><td style="color:var(--ink-muted);">'+esc(h.description||'—')+'</td>'+
+          '<td class="mono" style="font-size:.78rem;">'+(h.nextDue?fmtDate(h.nextDue):'—')+'</td></tr>';
+      }).join('')+'</tbody></table>';
+  }
+  function openHealthModal(){
+    var html = '<div class="w-modal"><h3>Log health record</h3><form id="w-health-form">'+
+      '<div class="w-field"><label>Rabbit</label><select name="rabbitId" required>'+rabbitOptions('',null,null)+'</select></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Date</label><input type="date" name="date" required value="'+todayStr()+'"/></div>'+
+      '<div class="w-field"><label>Type</label><select name="type"><option>Vaccination</option><option>Treatment</option><option>Checkup</option><option>Weight log</option></select></div></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Weight (lb, optional)</label><input type="number" step="0.1" name="weight"/></div>'+
+      '<div class="w-field"><label>Next due (optional)</label><input type="date" name="nextDue"/></div></div>'+
+      '<div class="w-field"><label>Notes</label><textarea name="description"></textarea></div>'+
+      '<div class="w-modalfoot"><span style="flex:1"></span><button type="button" class="w-btn w-btn-ghost" onclick="WApp.closeModal()">Cancel</button>'+
+      '<button type="submit" class="w-btn w-btn-primary">Save record</button></div></form></div>';
+    showModal(html);
+    document.getElementById('w-health-form').onsubmit = async function(e){
+      e.preventDefault(); var f = new FormData(e.target);
+      var body = {rabbitId:f.get('rabbitId'), date:f.get('date'), type:f.get('type'), weight:f.get('weight')?parseFloat(f.get('weight')):null, nextDue:f.get('nextDue')||null, description:f.get('description')};
+      try{ await createItem('health', body); closeModal(); renderMain(); showToast('Health record saved'); }
+      catch(err){ showToast(friendlyError(err), true); }
+    };
+  }
+
+  // ============ HOUSING ============
+  function viewHousing(){
+    var active = state.rabbits.filter(function(r){return r.status==='active';});
+    return '<div class="w-headrow"><div><h2>Housing</h2><div class="w-sub">'+state.cages.length+' hutches</div></div>'+
+      (can('worker')?'<button class="w-btn w-btn-primary" onclick="WApp.openCageModal()">+ Add hutch</button>':'')+'</div>'+
+      (state.cages.length? '<div class="w-stats">'+state.cages.map(function(c){
+        var occ = active.filter(function(r){return r.cageId===c.id;});
+        var over = occ.length>c.capacity;
+        return '<div class="w-panel" style="margin-bottom:0;"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><h3 style="border:none;padding:0;font-size:.95rem;">'+esc(c.label)+'</h3>'+
+          (can('worker')?'<button class="w-btn w-btn-ghost w-btn-sm" onclick="WApp.openCageModal(\''+c.id+'\')">Edit</button>':'')+'</div>'+
+          '<div style="font-size:.78rem;color:var(--ink-muted);margin-bottom:8px;">'+esc(c.location||'')+'</div>'+
+          '<div class="mono" style="font-size:1.1rem;font-weight:700;color:'+(over?'var(--warn)':'var(--moss)')+';">'+occ.length+' / '+c.capacity+'</div>'+
+          '<div style="font-size:.72rem;color:var(--ink-muted);margin-bottom:6px;">occupants</div>'+
+          (occ.length? occ.map(function(r){return eartag(r);}).join(' ') : '<span style="font-size:.78rem;color:var(--grey);">Empty</span>')+'</div>';
+      }).join('')+'</div>' : '<div class="w-panel w-empty"><p>No hutches set up yet.</p></div>');
+  }
+  function openCageModal(id){
+    var c = id ? cageById(id) : null;
+    var html = '<div class="w-modal"><h3>'+(c?'Edit hutch':'Add hutch')+'</h3><form id="w-cage-form">'+
+      '<div class="w-field"><label>Label</label><input name="label" required value="'+esc(c?c.label:'')+'" placeholder="e.g. Row A-3"/></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Location</label><input name="location" value="'+esc(c?c.location:'')+'" placeholder="e.g. North barn"/></div>'+
+      '<div class="w-field"><label>Capacity</label><input type="number" name="capacity" min="1" value="'+(c?c.capacity:1)+'"/></div></div>'+
+      '<div class="w-modalfoot">'+(c&&can('supervisor')?'<button type="button" class="w-btn w-btn-danger" onclick="WApp.deleteCage(\''+c.id+'\')">Delete</button>':'<span></span>')+
+      '<span style="flex:1"></span><button type="button" class="w-btn w-btn-ghost" onclick="WApp.closeModal()">Cancel</button>'+
+      '<button type="submit" class="w-btn w-btn-primary">Save</button></div></form></div>';
+    showModal(html);
+    document.getElementById('w-cage-form').onsubmit = async function(e){
+      e.preventDefault(); var f = new FormData(e.target);
+      var body = {label:f.get('label'), location:f.get('location'), capacity:parseInt(f.get('capacity'))||1};
+      try{ if(c) await updateItem('cages', c.id, body); else await createItem('cages', body); closeModal(); renderMain(); showToast('Hutch saved'); }
+      catch(err){ showToast(friendlyError(err), true); }
+    };
+  }
+  async function deleteCage(id){
+    if(!confirm('Delete this hutch? Rabbits assigned to it will need reassigning.')) return;
+    try{ await deleteItemApi('cages', id); closeModal(); renderMain(); showToast('Hutch deleted'); }
+    catch(err){ showToast(friendlyError(err), true); }
+  }
+
+  // ============ FEED ============
+  function viewFeed(){
+    var rows = state.feedStock.slice().sort(function(a,b){return a.name.localeCompare(b.name);});
+    var low = rows.filter(isLowStock).length;
+    return '<div class="w-headrow"><div><h2>Feed</h2><div class="w-sub">'+rows.length+' stock items</div></div>'+
+      (can('worker')?'<button class="w-btn w-btn-primary" onclick="WApp.openFeedItemModal()">+ Add feed item</button>':'')+'</div>'+
+      '<div class="w-stats">'+stat(rows.length,'Stock items')+stat(low,'Low stock')+'</div>'+
+      '<div class="w-panel">'+(rows.length? feedTable(rows) : '<div class="w-empty"><p>No feed stock tracked yet.</p></div>')+'</div>';
+  }
+  function feedTable(rows){
+    return '<table class="w-table"><thead><tr><th>Item</th><th>On hand</th><th>Reorder at</th><th>Status</th><th></th></tr></thead><tbody>'+
+      rows.map(function(f){
+        var low = isLowStock(f);
+        return '<tr><td>'+esc(f.name)+(f.notes?'<div style="font-size:.72rem;color:var(--ink-muted);">'+esc(f.notes)+'</div>':'')+'</td>'+
+          '<td class="mono">'+f.quantity+' '+esc(f.unit)+'</td><td class="mono" style="color:var(--ink-muted);">'+f.reorderLevel+' '+esc(f.unit)+'</td>'+
+          '<td><span class="w-pill '+(low?'pill-warn':'pill-moss')+'">'+(low?'Low':'OK')+'</span></td>'+
+          '<td style="white-space:nowrap;">'+(can('worker')?('<button class="w-btn w-btn-ghost w-btn-sm" onclick="WApp.openFeedAdjustModal(\''+f.id+'\',\'restock\')">Restock</button> <button class="w-btn w-btn-ghost w-btn-sm" onclick="WApp.openFeedAdjustModal(\''+f.id+'\',\'use\')">Use</button> <button class="w-btn w-btn-ghost w-btn-sm" onclick="WApp.openFeedItemModal(\''+f.id+'\')">Edit</button>'):'')+'</td></tr>';
+      }).join('')+'</tbody></table>';
+  }
+  function openFeedItemModal(id){
+    var f = id ? feedItemById(id) : null;
+    var html = '<div class="w-modal"><h3>'+(f?'Edit feed item':'Add feed item')+'</h3><form id="w-feed-form">'+
+      '<div class="w-field"><label>Item name</label><input name="name" required value="'+esc(f?f.name:'')+'" placeholder="e.g. Alfalfa pellets"/></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Quantity on hand</label><input type="number" step="0.1" name="quantity" required value="'+(f?f.quantity:'')+'"/></div>'+
+      '<div class="w-field"><label>Unit</label><select name="unit"><option '+(f&&f.unit==='lb'?'selected':'')+'>lb</option><option '+(f&&f.unit==='kg'?'selected':'')+'>kg</option><option '+(f&&f.unit==='bag'?'selected':'')+'>bag</option><option '+(f&&f.unit==='bale'?'selected':'')+'>bale</option></select></div></div>'+
+      '<div class="w-field"><label>Reorder level</label><input type="number" step="0.1" name="reorderLevel" required value="'+(f?f.reorderLevel:'')+'"/></div>'+
+      '<div class="w-field"><label>Notes</label><textarea name="notes">'+esc(f?f.notes:'')+'</textarea></div>'+
+      '<div class="w-modalfoot">'+(f&&can('supervisor')?'<button type="button" class="w-btn w-btn-danger" onclick="WApp.deleteFeedItem(\''+f.id+'\')">Delete</button>':'<span></span>')+
+      '<span style="flex:1"></span><button type="button" class="w-btn w-btn-ghost" onclick="WApp.closeModal()">Cancel</button>'+
+      '<button type="submit" class="w-btn w-btn-primary">Save item</button></div></form></div>';
+    showModal(html);
+    document.getElementById('w-feed-form').onsubmit = async function(e){
+      e.preventDefault(); var d = new FormData(e.target);
+      var body = {name:d.get('name'), quantity:parseFloat(d.get('quantity'))||0, unit:d.get('unit'), reorderLevel:parseFloat(d.get('reorderLevel'))||0, notes:d.get('notes')};
+      try{ if(f) await updateItem('feedStock', f.id, body); else await createItem('feedStock', body); closeModal(); renderMain(); showToast('Feed item saved'); }
+      catch(err){ showToast(friendlyError(err), true); }
+    };
+  }
+  async function deleteFeedItem(id){
+    if(!confirm('Remove this feed item from stock tracking?')) return;
+    try{ await deleteItemApi('feedStock', id); closeModal(); renderMain(); showToast('Feed item removed'); }
+    catch(err){ showToast(friendlyError(err), true); }
+  }
+  function openFeedAdjustModal(id, kind){
+    var f = feedItemById(id); if(!f) return;
+    var isRestock = kind==='restock';
+    var html = '<div class="w-modal"><h3>'+(isRestock?'Restock':'Log use of')+' '+esc(f.name)+'</h3>'+
+      '<div class="w-sub" style="margin-bottom:12px;">Currently '+f.quantity+' '+esc(f.unit)+' on hand</div>'+
+      '<form id="w-feedadjust-form">'+
+      '<div class="w-row2"><div class="w-field"><label>Date</label><input type="date" name="date" required value="'+todayStr()+'"/></div>'+
+      '<div class="w-field"><label>Amount ('+esc(f.unit)+')</label><input type="number" step="0.1" min="0.1" name="amount" required/></div></div>'+
+      (isRestock? '<div class="w-field"><label>Cost ('+esc(currentFarm.currency)+', optional — logs to Ledger)</label><input type="number" step="0.01" name="cost"/></div>' : '')+
+      '<div class="w-field"><label>Notes</label><textarea name="notes"></textarea></div>'+
+      '<div class="w-modalfoot"><span style="flex:1"></span><button type="button" class="w-btn w-btn-ghost" onclick="WApp.closeModal()">Cancel</button>'+
+      '<button type="submit" class="w-btn w-btn-primary">'+(isRestock?'Add stock':'Log use')+'</button></div></form></div>';
+    showModal(html);
+    document.getElementById('w-feedadjust-form').onsubmit = async function(e){
+      e.preventDefault(); var d = new FormData(e.target);
+      var amount = parseFloat(d.get('amount'))||0;
+      var dateStr = d.get('date'), notes = d.get('notes');
+      var cost = isRestock ? (parseFloat(d.get('cost'))||0) : 0;
+      try{
+        var farmRef = db.collection('farms').doc(currentFarm.id);
+        var itemRef = farmRef.collection('feedStock').doc(f.id);
+        var txRef = farmRef.collection('feedTx').doc();
+        var ledgerRef = (isRestock && cost>0) ? farmRef.collection('ledger').doc() : null;
+        var updatedItem;
+        await db.runTransaction(async function(t){
+          var itemSnap = await t.get(itemRef);
+          if(!itemSnap.exists) throw new Error('Feed item not found');
+          var item = itemSnap.data();
+          var newQty = isRestock ? Number(item.quantity)+amount : Math.max(0, Number(item.quantity)-amount);
+          t.update(itemRef, {quantity:newQty});
+          t.set(txRef, {itemId:f.id, kind:kind, date:dateStr, amount:amount, notes:notes||'', createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+          if(ledgerRef) t.set(ledgerRef, {date:dateStr, type:'Feed', category:item.name+' restock', amount:cost, notes:notes||'', rabbitId:null, createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+          updatedItem = Object.assign({id:f.id}, item, {quantity:newQty});
+        });
+        var idx = state.feedStock.findIndex(function(x){return x.id===f.id;});
+        if(idx>-1) state.feedStock[idx]=updatedItem;
+        if(ledgerRef) await refetch('ledger');
+        closeModal(); renderMain(); showToast('Stock updated');
+      }catch(err){ showToast(friendlyError(err), true); }
+    };
+  }
+
+  // ============ LEDGER ============
+  function viewLedger(){
+    var rows = state.ledger.slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    var income = state.ledger.filter(function(e){return e.type==='Sale';}).reduce(function(s,e){return s+Number(e.amount);},0);
+    var expense = state.ledger.filter(function(e){return e.type!=='Sale';}).reduce(function(s,e){return s+Number(e.amount);},0);
+    return '<div class="w-headrow"><div><h2>Ledger</h2><div class="w-sub">Sales, feed &amp; expenses in '+esc(currentFarm.currency)+'</div></div>'+
+      (can('worker')?'<button class="w-btn w-btn-primary" onclick="WApp.openLedgerModal()">+ Add entry</button>':'')+'</div>'+
+      '<div class="w-stats">'+stat(money(income),'Income')+stat(money(expense),'Expenses')+stat(money(income-expense),'Net')+'</div>'+
+      '<div class="w-panel">'+(rows.length? ledgerTable(rows) : '<div class="w-empty"><p>No ledger entries yet.</p></div>')+'</div>';
+  }
+  function ledgerTable(rows){
+    return '<table class="w-table"><thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Rabbit</th><th>Amount</th><th>Notes</th></tr></thead><tbody>'+
+      rows.map(function(e){
+        var r = e.rabbitId?rabbitById(e.rabbitId):null;
+        return '<tr><td class="mono" style="font-size:.78rem;">'+fmtDate(e.date)+'</td><td><span class="w-pill '+(e.type==='Sale'?'pill-moss':'pill-clay')+'">'+esc(e.type)+'</span></td>'+
+          '<td>'+esc(e.category)+'</td><td>'+(r?eartag(r):'—')+'</td><td class="mono">'+money(e.amount)+'</td><td style="color:var(--ink-muted);">'+esc(e.notes||'')+'</td></tr>';
+      }).join('')+'</tbody></table>';
+  }
+  function openLedgerModal(){
+    var html = '<div class="w-modal"><h3>Add ledger entry</h3><form id="w-ledger-form">'+
+      '<div class="w-row2"><div class="w-field"><label>Date</label><input type="date" name="date" required value="'+todayStr()+'"/></div>'+
+      '<div class="w-field"><label>Type</label><select name="type"><option>Sale</option><option>Expense</option><option>Feed</option></select></div></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Category</label><input name="category" placeholder="e.g. Pellet feed, Vet visit, Rabbit sale" required/></div>'+
+      '<div class="w-field"><label>Amount ('+esc(currentFarm.currency)+')</label><input type="number" step="0.01" name="amount" required/></div></div>'+
+      '<div class="w-field"><label>Related rabbit (optional)</label><select name="rabbitId">'+rabbitOptions('',null,null)+'</select></div>'+
+      '<div class="w-field"><label>Notes</label><textarea name="notes"></textarea></div>'+
+      '<div class="w-modalfoot"><span style="flex:1"></span><button type="button" class="w-btn w-btn-ghost" onclick="WApp.closeModal()">Cancel</button>'+
+      '<button type="submit" class="w-btn w-btn-primary">Save entry</button></div></form></div>';
+    showModal(html);
+    document.getElementById('w-ledger-form').onsubmit = async function(e){
+      e.preventDefault(); var f = new FormData(e.target);
+      var body = {date:f.get('date'), type:f.get('type'), category:f.get('category'), amount:parseFloat(f.get('amount'))||0, rabbitId:f.get('rabbitId')||null, notes:f.get('notes')};
+      try{ await createItem('ledger', body); closeModal(); renderMain(); showToast('Ledger entry saved'); }
+      catch(err){ showToast(friendlyError(err), true); }
+    };
+  }
+
+  // ============ TEAM ============
+  var teamMembers = [];
+  async function loadAndRenderTeam(){
+    try{
+      var snap = await db.collection('farms').doc(currentFarm.id).collection('members').get();
+      teamMembers = snap.docs.map(function(d){ return Object.assign({uid:d.id}, d.data()); });
+    }catch(e){ showToast(friendlyError(e), true); teamMembers=[]; }
+    var main = document.getElementById('w-main');
+    if(main && current==='team') main.innerHTML = viewTeam();
+    var settingsForm = document.getElementById('w-farmsettings-form');
+    if(settingsForm) settingsForm.onsubmit = handleFarmSettingsSubmit;
+    var addMemberForm = document.getElementById('w-addmember-form');
+    if(addMemberForm) addMemberForm.onsubmit = handleAddMemberSubmit;
+  }
+  function viewTeam(){
+    var roleOpts = ['viewer','worker','supervisor','farm_manager'];
+    return '<div class="w-headrow"><div><h2>Team</h2><div class="w-sub">Who has access to '+esc(currentFarm.name)+'</div></div></div>'+
+      (can('farm_manager')? ('<div class="w-panel"><h3>Farm settings</h3><form id="w-farmsettings-form" class="w-row2">'+
+        '<div class="w-field"><label>Farm name</label><input name="name" value="'+esc(currentFarm.name)+'"/></div>'+
+        '<div class="w-field"><label>Currency</label><select name="currency">'+CURRENCIES.map(function(c){return '<option value="'+c+'" '+(c===currentFarm.currency?'selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'+
+        '<div style="grid-column:1/-1;"><button type="submit" class="w-btn w-btn-primary">Save farm settings</button></div>'+
+      '</form></div>') : '')+
+      (can('farm_manager')? ('<div class="w-panel"><h3>Add a team member</h3><form id="w-addmember-form" class="w-row2">'+
+        '<div class="w-field"><label>Email (must already have a Warren account)</label><input type="email" name="email" required/></div>'+
+        '<div class="w-field"><label>Role</label><select name="role">'+roleOpts.map(function(r){return '<option value="'+r+'">'+r.replace('_',' ')+'</option>';}).join('')+'</select></div>'+
+        '<div style="grid-column:1/-1;"><button type="submit" class="w-btn w-btn-primary">Add member</button></div>'+
+      '</form></div>') : '')+
+      '<div class="w-panel"><h3>Members ('+teamMembers.length+')</h3>'+
+        (teamMembers.length? ('<table class="w-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th>'+(can('farm_manager')?'<th></th>':'')+'</tr></thead><tbody>'+
+          teamMembers.map(function(m){
+            return '<tr><td>'+esc(m.name||'—')+'</td><td class="mono" style="font-size:.78rem;">'+esc(m.email)+'</td>'+
+              '<td>'+(can('farm_manager')? ('<select onchange="WApp.changeRole(\''+m.uid+'\',this.value)">'+roleOpts.map(function(r){return '<option value="'+r+'" '+(r===m.role?'selected':'')+'>'+r.replace('_',' ')+'</option>';}).join('')+'</select>') : ('<span class="w-pill pill-moss">'+m.role.replace('_',' ')+'</span>'))+'</td>'+
+              (can('farm_manager')? ('<td><button class="w-btn w-btn-danger w-btn-sm" onclick="WApp.removeMember(\''+m.uid+'\')">Remove</button></td>') : '')+
+            '</tr>';
+          }).join('')+'</tbody></table>') : '<div class="w-empty"><p>No members loaded.</p></div>')+
+      '</div>';
+  }
+  async function handleFarmSettingsSubmit(e){
+    e.preventDefault(); var f = new FormData(e.target);
+    var name = f.get('name'), currency = f.get('currency');
+    try{
+      await db.collection('farms').doc(currentFarm.id).update({name:name, currency:currency});
+      currentFarm.name = name; currentFarm.currency = currency;
+      var fi = farms.findIndex(function(x){return x.id===currentFarm.id;});
+      if(fi>-1){ farms[fi].name=name; farms[fi].currency=currency; }
+      // Fan out the new name/currency to every member's `memberships` index doc.
+      var batch = db.batch();
+      teamMembers.forEach(function(m){
+        batch.update(db.collection('memberships').doc(m.uid+'_'+currentFarm.id), {farmName:name, currency:currency});
+      });
+      await batch.commit();
+      renderRoot(); showToast('Farm settings saved');
+    }catch(err){ showToast(friendlyError(err), true); }
+  }
+  async function handleAddMemberSubmit(e){
+    e.preventDefault(); var f = new FormData(e.target);
+    try{
+      var addFn = fx.httpsCallable('addFarmMember');
+      await addFn({farmId:currentFarm.id, email:f.get('email'), role:f.get('role')});
+      showToast('Member added'); loadAndRenderTeam();
+    }catch(err){ showToast(friendlyError(err), true); }
+  }
+  async function changeRole(uid, role){
+    try{
+      var batch = db.batch();
+      batch.update(db.collection('farms').doc(currentFarm.id).collection('members').doc(uid), {role:role});
+      batch.update(db.collection('memberships').doc(uid+'_'+currentFarm.id), {role:role});
+      await batch.commit();
+      showToast('Role updated'); loadAndRenderTeam();
+    }catch(err){ showToast(friendlyError(err), true); loadAndRenderTeam(); }
+  }
+  async function removeMember(uid){
+    var managers = teamMembers.filter(function(m){return m.role==='farm_manager';});
+    if(managers.length===1 && managers[0].uid===uid){ showToast('Cannot remove the only farm manager', true); return; }
+    if(!confirm('Remove this person from the farm?')) return;
+    try{
+      var batch = db.batch();
+      batch.delete(db.collection('farms').doc(currentFarm.id).collection('members').doc(uid));
+      batch.delete(db.collection('memberships').doc(uid+'_'+currentFarm.id));
+      await batch.commit();
+      showToast('Member removed'); loadAndRenderTeam();
+    }catch(err){ showToast(friendlyError(err), true); }
+  }
+
+  // ============ MODAL HELPERS ============
+  function showModal(html){ document.getElementById('w-modal-root').innerHTML = '<div class="w-overlay" onclick="if(event.target===this)WApp.closeModal()">'+html+'</div>'; }
+  function closeModal(){ var el = document.getElementById('w-modal-root'); if(el) el.innerHTML=''; }
+  function setHerdFilter(k,v){ herdFilter[k]=v; renderMain(); }
+
+  window.WApp = {
+    setAuthMode:setAuthMode, pickFarm:pickFarm, goNewFarm:goNewFarm, backToPick:backToPick, logout:logout, switchFarm:switchFarm,
+    go:go, openRabbitModal:openRabbitModal, deleteRabbit:deleteRabbit, openRabbitDetail:openRabbitDetail,
+    openLitterModal:openLitterModal, deleteLitter:deleteLitter, openHealthModal:openHealthModal,
+    openCageModal:openCageModal, deleteCage:deleteCage, openFeedItemModal:openFeedItemModal,
+    deleteFeedItem:deleteFeedItem, openFeedAdjustModal:openFeedAdjustModal, openLedgerModal:openLedgerModal,
+    closeModal:closeModal, setHerdFilter:setHerdFilter, changeRole:changeRole, removeMember:removeMember
+  };
+
+})();
+</script>
+</body>
+</html>
