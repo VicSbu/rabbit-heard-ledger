@@ -17,7 +17,7 @@ exports.createFarm = onCall(async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'You must be logged in');
   const { name, currency } = request.data || {};
   if (!name || !String(name).trim()) throw new HttpsError('invalid-argument', 'Farm name is required');
-  const cur = CURRENCIES.includes(currency) ? currency : 'USD';
+  const cur = CURRENCIES.includes(currency) ? currency : 'SZL';
 
   const uid = request.auth.uid;
   const email = request.auth.token.email || '';
@@ -69,7 +69,7 @@ exports.addFarmMember = onCall(async (request) => {
   try {
     userRecord = await admin.auth().getUserByEmail(String(email).toLowerCase().trim());
   } catch (e) {
-    throw new HttpsError('not-found', 'No Warren account found for that email. Ask them to register first.');
+    throw new HttpsError('not-found', 'No application account found for that email. Ask them to register first.');
   }
 
   const farmSnap = await db.collection('farms').doc(farmId).get();

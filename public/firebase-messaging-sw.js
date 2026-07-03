@@ -9,12 +9,12 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDc6Yne4veS8b7EN7LmvJhTsy8sFhMrGTk",
+  authDomain: "rabbit-heard-leadger.firebaseapp.com",
+  projectId: "rabbit-heard-leadger",
+  storageBucket: "rabbit-heard-leadger.firebasestorage.app",
+  messagingSenderId: "112359733558",
+  appId: "1:112359733558:web:e5df3a5d8d5211387d5b97"
 });
 
 var messaging = firebase.messaging();

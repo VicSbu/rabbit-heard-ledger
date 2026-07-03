@@ -138,15 +138,15 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
   // Paste this from Firebase Console → Project settings → General →
   // "Your apps" → Web app → SDK setup and configuration.
   var firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyDc6Yne4veS8b7EN7LmvJhTsy8sFhMrGTk",
+    authDomain: "rabbit-heard-leadger.firebaseapp.com",
+   projectId: "rabbit-heard-leadger",
+   storageBucket: "rabbit-heard-leadger.firebasestorage.app",
+   messagingSenderId: "112359733558",
+   appId: "1:112359733558:web:e5df3a5d8d5211387d5b97"
   };
 
-  var configured = firebaseConfig.apiKey !== 'YOUR_API_KEY';
+  var configured = firebaseConfig.apiKey !== 'AIzaSyDc6Yne4veS8b7EN7LmvJhTsy8sFhMrGTk';
   if(!configured){
     document.getElementById('root').innerHTML =
       '<div class="w-configwarn"><h2 style="margin-bottom:8px;">One setup step left</h2>'+
@@ -162,7 +162,7 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
   var db = firebase.firestore();
   var fx = firebase.functions();
 
-  var CURRENCY_SYMBOLS = {USD:'$',EUR:'€',GBP:'£',ZAR:'R',SZL:'L',KES:'KSh',NGN:'₦',GHS:'GH₵',INR:'₹',AUD:'A$',CAD:'C$',BWP:'P',ZMW:'K'};
+  var CURRENCY_SYMBOLS = {USD:'$',EUR:'€',GBP:'£',ZAR:'R',SZL:'E',KES:'KSh',NGN:'₦',GHS:'GH₵',INR:'₹',AUD:'A$',CAD:'C$',BWP:'P',ZMW:'K'};
   var CURRENCIES = ['USD','EUR','GBP','ZAR','SZL','KES','NGN','GHS','INR','AUD','CAD','BWP','ZMW'];
   var ROLE_RANK = {viewer:0, worker:1, supervisor:2, farm_manager:3};
   function can(minRole){ return (ROLE_RANK[currentRole]||0) >= ROLE_RANK[minRole]; }
