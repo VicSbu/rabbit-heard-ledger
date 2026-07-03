@@ -8,117 +8,135 @@
 @import url('https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 *{box-sizing:border-box;}
-html,body{margin:0;height:100%;background:#F3EEE3;}
+html,body{margin:0;height:100%;background:#f4f7fb;color:var(--ink);}
 :root{
-  --bg:#F3EEE3; --surface:#FFFFFF; --surface-alt:#EAE2D0; --ink:#2C2620; --ink-muted:#6B6255;
-  --moss:#4B5D3A; --moss-light:#7C9268; --barn:#8A3324; --clay:#C97B5B; --line:#D8CDB8;
-  --warn:#B4592B; --grey:#9A9284; --radius:6px;
+  --bg:#f4f7fb; --surface:#ffffff; --surface-alt:#eff4fb; --ink:#10273b; --ink-muted:#5f738d;
+  --accent:#3469a8; --accent-strong:#234e7f; --accent-soft:#dbe8f6;
+  --warn:#d85d42; --line:rgba(16,39,59,.12);
+  --radius:18px; --radius-sm:12px;
 }
-body{font-family:'Inter',sans-serif;color:var(--ink);}
-h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
+body{font-family:'Inter',sans-serif;}
+h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink);}
 .mono{font-family:'JetBrains Mono',monospace;}
 
-.warren-app{min-height:100vh;display:flex;}
-.w-sidebar{width:210px;flex-shrink:0;background:var(--surface-alt);border-right:1px solid var(--line);padding:20px 0;display:flex;flex-direction:column;}
-.w-brand{display:flex;align-items:center;gap:8px;padding:0 18px 14px 18px;border-bottom:1px solid var(--line);margin-bottom:10px;}
-.w-brand h1{font-size:1.35rem;color:var(--barn);letter-spacing:.5px;}
-.w-brand span{display:block;font-size:.68rem;color:var(--ink-muted);text-transform:uppercase;letter-spacing:1.5px;margin-top:1px;}
-.w-farmswitch{padding:0 14px 14px 14px;border-bottom:1px solid var(--line);margin-bottom:10px;}
-.w-farmswitch select{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:4px;background:var(--bg);font-size:.8rem;font-family:'Inter',sans-serif;}
-.w-farmswitch .role{font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-muted);margin-top:6px;}
-.w-nav{display:flex;flex-direction:column;gap:2px;padding:0 10px;}
-.w-navitem{display:flex;align-items:center;gap:9px;padding:9px 10px;border-left:3px solid transparent;font-size:.86rem;font-weight:500;color:var(--ink-muted);cursor:pointer;border-radius:0 4px 4px 0;background:none;text-align:left;width:100%;font-family:'Inter',sans-serif;}
-.w-navitem:hover{background:rgba(0,0,0,0.04);color:var(--ink);}
-.w-navitem.active{border-left-color:var(--barn);color:var(--ink);background:var(--surface);font-weight:600;}
-.w-navitem svg{width:15px;height:15px;flex-shrink:0;opacity:.75;}
-.w-sidefoot{margin-top:auto;padding:14px 18px 0 18px;border-top:1px solid var(--line);font-size:.72rem;color:var(--grey);}
-.w-sidefoot button{margin-top:8px;}
+.warren-app{min-height:100vh;display:flex;background:var(--bg);}
+.w-sidebar{width:250px;flex-shrink:0;background:rgba(255,255,255,.95);border-right:1px solid var(--line);padding:24px 20px;display:flex;flex-direction:column;box-shadow:2px 0 28px rgba(16,39,59,.06);}
+.w-brand{display:flex;align-items:center;gap:10px;padding:0 4px 18px 4px;margin-bottom:18px;}
+.w-brand h1{font-size:1.6rem;color:var(--accent-strong);letter-spacing:.35px;}
+.w-brand span{display:block;font-size:.75rem;color:var(--ink-muted);text-transform:uppercase;letter-spacing:1.5px;}
+.w-farmswitch{padding:0 4px 18px 4px;border-bottom:1px solid var(--line);margin-bottom:18px;}
+.w-farmswitch select{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:16px;background:var(--surface);font-size:.92rem;font-family:'Inter',sans-serif;color:var(--ink);}
+.w-farmswitch .role{font-size:.72rem;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-muted);margin-top:10px;}
+.w-nav{display:flex;flex-direction:column;gap:10px;padding:0 4px;}
+.w-navitem{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;font-size:.92rem;font-weight:700;color:var(--ink-muted);cursor:pointer;border:1px solid transparent;background:transparent;transition:all .2s ease;}
+.w-navitem:hover{background:var(--surface);border-color:var(--line);color:var(--ink);}
+.w-navitem.active{background:linear-gradient(135deg, rgba(52,105,168,.12), rgba(52,105,168,.05));border-color:rgba(52,105,168,.25);color:var(--accent-strong);}
+.w-navitem svg{width:18px;height:18px;opacity:.88;}
+.w-sidefoot{margin-top:auto;padding-top:24px;font-size:.8rem;color:var(--ink-muted);}
+.w-sidefoot button{margin-top:10px;display:block;width:100%;}
 
-.w-main{flex:1;padding:22px 26px;overflow-y:auto;max-height:100vh;}
-.w-headrow{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
-.w-headrow h2{font-size:1.4rem;}
-.w-sub{color:var(--ink-muted);font-size:.82rem;margin-top:2px;}
+.w-main{flex:1;padding:32px 34px;overflow-y:auto;max-height:100vh;}
+.w-headrow{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;flex-wrap:wrap;gap:16px;}
+.w-headrow h2{font-size:1.8rem;}
+.w-sub{color:var(--ink-muted);font-size:.92rem;margin-top:4px;}
 
-.w-btn{font-family:'Inter',sans-serif;font-weight:600;font-size:.82rem;padding:8px 14px;border-radius:var(--radius);border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
-.w-btn-primary{background:var(--moss);color:#fff;}
-.w-btn-primary:hover{background:#3d4c30;}
+.w-btn{font-family:'Inter',sans-serif;font-weight:700;font-size:.95rem;padding:12px 18px;border-radius:16px;border:1px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:background .2s ease,border-color .2s ease,color .2s ease,transform .2s ease;}
+.w-btn-primary{background:var(--accent);color:#fff;box-shadow:0 18px 40px rgba(52,105,168,.18);}
+.w-btn-primary:hover{background:var(--accent-strong);transform:translateY(-1px);}
 .w-btn-ghost{background:transparent;border-color:var(--line);color:var(--ink);}
-.w-btn-ghost:hover{background:var(--surface-alt);}
-.w-btn-danger{background:transparent;border-color:var(--barn);color:var(--barn);}
-.w-btn-danger:hover{background:var(--barn);color:#fff;}
-.w-btn-sm{padding:5px 9px;font-size:.72rem;}
-.w-btn:disabled{opacity:.5;cursor:not-allowed;}
+.w-btn-ghost:hover{background:var(--surface);}
+.w-btn-danger{background:transparent;border-color:var(--warn);color:var(--warn);}
+.w-btn-danger:hover{background:var(--warn);color:#fff;}
+.w-btn-sm{padding:9px 14px;font-size:.82rem;}
+.w-btn:disabled{opacity:.55;cursor:not-allowed;}
 
-.w-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:22px;}
-.w-stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;}
-.w-stat .n{font-family:'JetBrains Mono',monospace;font-size:1.6rem;font-weight:700;color:var(--moss);}
-.w-stat .l{font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--ink-muted);margin-top:2px;}
+.w-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:28px;}
+.w-stat{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:22px 24px;box-shadow:0 24px 45px rgba(16,39,59,.06);}
+.w-stat .n{font-family:'JetBrains Mono',monospace;font-size:1.75rem;font-weight:700;color:var(--accent-strong);}
+.w-stat .l{font-size:.72rem;text-transform:uppercase;letter-spacing:1px;color:var(--ink-muted);margin-top:8px;}
 
-.w-alert{display:flex;gap:10px;align-items:flex-start;background:#FBF1E8;border:1px solid var(--clay);border-left:4px solid var(--warn);border-radius:var(--radius);padding:10px 13px;margin-bottom:9px;font-size:.82rem;}
-.w-alert b{color:var(--barn);}
+.w-alert{display:flex;gap:12px;align-items:flex-start;background:#fff5f1;border:1px solid rgba(216,93,66,.18);border-left:4px solid var(--warn);border-radius:16px;padding:14px 16px;margin-bottom:12px;font-size:.94rem;}
+.w-alert b{color:var(--warn);}
 
-.w-panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;}
-.w-panel h3{font-size:1rem;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line);}
+.w-panel{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:24px;box-shadow:0 24px 60px rgba(16,39,59,.06);margin-bottom:20px;}
+.w-panel h3{font-size:1.05rem;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line);}
+.w-hero{background:linear-gradient(135deg, rgba(52,105,168,.12), rgba(52,105,168,.03));border-color:rgba(52,105,168,.18);padding:28px 30px;}
+.w-hero-copy{margin-top:14px;font-size:1rem;color:var(--ink-muted);line-height:1.75;max-width:620px;}
+.w-quickactions{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px;}
+.w-quickaction{min-width:160px;}
+.w-dashboard-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:22px;}
+.w-dashboard-card{background:rgba(52,105,168,.08);border:1px solid rgba(52,105,168,.16);border-radius:18px;padding:16px 18px;}
+.w-dashboard-card .title{font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-muted);margin-bottom:8px;}
+.w-dashboard-card .value{font-size:1.45rem;font-weight:700;color:var(--accent-strong);}
+.w-dashboard-card .meta{margin-top:8px;font-size:.86rem;color:var(--ink-muted);}
 
-.w-table{width:100%;border-collapse:collapse;font-size:.84rem;}
-.w-table th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-muted);padding:6px 8px;border-bottom:1px solid var(--line);font-weight:600;}
-.w-table td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle;}
-.w-table tr:hover td{background:rgba(75,93,58,0.04);}
+.w-table{width:100%;border-collapse:separate;border-spacing:0 10px;font-size:.93rem;}
+.w-table th{text-align:left;font-size:.76rem;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-muted);padding:12px 14px;}
+.w-table td{padding:14px 14px;background:var(--surface-alt);border:none;vertical-align:middle;}
+.w-table tbody tr td:first-child{border-top-left-radius:16px;border-bottom-left-radius:16px;}
+.w-table tbody tr td:last-child{border-top-right-radius:16px;border-bottom-right-radius:16px;}
+.w-table tr:hover td{background:var(--surface);}
 .w-table tr:last-child td{border-bottom:none;}
-.w-empty{padding:30px 10px;text-align:center;color:var(--ink-muted);}
-.w-empty p{margin-bottom:12px;font-size:.86rem;}
+.w-empty{padding:34px;text-align:center;color:var(--ink-muted);}
+.w-empty p{margin:0;font-size:.95rem;}
 
-.eartag{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:.72rem;font-weight:700;padding:3px 9px 3px 11px;border-radius:2px 9px 9px 2px;position:relative;color:#fff;white-space:nowrap;}
-.eartag::before{content:'';position:absolute;left:1px;top:50%;transform:translateY(-50%);width:5px;height:5px;background:var(--bg);border-radius:50%;}
-.tag-active{background:var(--moss);} .tag-sold{background:var(--clay);} .tag-deceased{background:var(--grey);} .tag-retired{background:#7A6E5C;}
+.eartag{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:.78rem;font-weight:700;padding:6px 12px;border-radius:999px;position:relative;color:#fff;white-space:nowrap;}
+.eartag::before{content:'';position:absolute;left:10px;top:50%;transform:translateY(-50%);width:6px;height:6px;background:var(--surface);border-radius:50%;}
+.tag-active{background:var(--accent);} .tag-sold{background:#f59f76;} .tag-deceased{background:#8c98aa;} .tag-retired{background:#7c8fa3;}
 
-.w-pill{font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;padding:2px 8px;border-radius:20px;font-weight:600;}
-.pill-moss{background:rgba(75,93,58,.14);color:var(--moss);}
-.pill-clay{background:rgba(201,123,91,.18);color:var(--barn);}
-.pill-grey{background:rgba(154,146,132,.2);color:var(--grey);}
-.pill-warn{background:rgba(180,89,43,.15);color:var(--warn);}
+.w-pill{font-size:.72rem;text-transform:uppercase;letter-spacing:.6px;padding:5px 12px;border-radius:999px;font-weight:700;}
+.pill-moss{background:rgba(52,105,168,.12);color:var(--accent-strong);}
+.pill-clay{background:rgba(246,183,158,.22);color:#b45a45;}
+.pill-grey{background:rgba(149,156,168,.22);color:var(--ink-muted);}
+.pill-warn{background:rgba(216,93,66,.14);color:var(--warn);}
 
-.w-link{color:var(--moss);cursor:pointer;text-decoration:underline;font-weight:500;}
-.w-link:hover{color:var(--barn);}
+.w-link{color:var(--accent-strong);cursor:pointer;text-decoration:none;font-weight:700;}
+.w-link:hover{color:var(--accent);}
 
-.w-overlay{position:fixed;inset:0;background:rgba(44,38,32,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
-.w-modal{background:var(--surface);border-radius:8px;max-width:480px;width:100%;max-height:85vh;overflow-y:auto;padding:20px 22px;border:1px solid var(--line);}
-.w-modal h3{font-size:1.1rem;margin-bottom:14px;}
-.w-field{margin-bottom:12px;}
-.w-field label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-muted);margin-bottom:4px;font-weight:600;}
-.w-field input,.w-field select,.w-field textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;font-family:'Inter',sans-serif;font-size:.86rem;background:var(--bg);color:var(--ink);}
-.w-field textarea{resize:vertical;min-height:50px;}
-.w-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.w-modalfoot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line);}
-.w-detailgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;font-size:.85rem;margin-bottom:6px;}
-.w-detailgrid .k{color:var(--ink-muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;}
+.w-overlay{position:fixed;inset:0;background:rgba(16,39,59,.35);display:flex;align-items:center;justify-content:center;z-index:50;padding:24px;}
+.w-modal{background:var(--surface);border-radius:24px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;padding:26px 28px;border:1px solid rgba(16,39,59,.08);box-shadow:0 28px 80px rgba(16,39,59,.16);}
+.w-modal h3{font-size:1.2rem;margin-bottom:18px;}
+.w-field{margin-bottom:16px;}
+.w-field label{display:block;font-size:.76rem;text-transform:uppercase;letter-spacing:.7px;color:var(--ink-muted);margin-bottom:10px;font-weight:700;}
+.w-field input,.w-field select,.w-field textarea{width:100%;padding:14px 16px;border:1px solid var(--line);border-radius:16px;font-family:'Inter',sans-serif;font-size:.95rem;background:var(--surface-alt);color:var(--ink);outline:none;transition:border-color .2s ease,box-shadow .2s ease;}
+.w-field input:focus,.w-field select:focus,.w-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(52,105,168,.08);}
+.w-field textarea{resize:vertical;min-height:90px;}
+.w-row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.w-modalfoot{display:flex;justify-content:flex-end;gap:12px;margin-top:24px;padding-top:18px;border-top:1px solid var(--line);}
+.w-detailgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px 22px;font-size:.92rem;margin-bottom:12px;}
+.w-detailgrid .k{color:var(--ink-muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.6px;}
 
-.w-authwrap{max-width:380px;margin:70px auto;padding:0 16px;}
-.w-authcard{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:28px 26px;}
-.w-authcard h2{margin-bottom:4px;}
-.w-authtabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--line);}
-.w-authtab{flex:1;text-align:center;padding:9px;font-size:.82rem;font-weight:600;color:var(--ink-muted);cursor:pointer;border-bottom:2px solid transparent;}
-.w-authtab.active{color:var(--barn);border-bottom-color:var(--barn);}
-.w-autherr{background:#FBF1E8;border:1px solid var(--clay);color:var(--barn);border-radius:4px;padding:8px 10px;font-size:.78rem;margin-bottom:12px;}
-.w-farmpick{max-width:460px;margin:70px auto;padding:0 16px;}
-.w-farmcard{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
-.w-farmcard:hover{border-color:var(--moss);}
+.w-authwrap{max-width:420px;margin:80px auto;padding:0 18px;}
+.w-authcard{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:36px 32px;box-shadow:0 28px 72px rgba(16,39,59,.08);}
+.w-authcard h2{margin-bottom:10px;font-size:2rem;}
+.w-authtabs{display:flex;gap:10px;margin-bottom:24px;border-bottom:1px solid rgba(16,39,59,.08);}
+.w-authtab{flex:1;text-align:center;padding:14px;font-size:.95rem;font-weight:700;color:var(--ink-muted);cursor:pointer;border-bottom:3px solid transparent;}
+.w-authtab.active{color:var(--accent-strong);border-bottom-color:var(--accent-strong);}
+.w-autherr{background:#fff4f2;border:1px solid rgba(216,93,66,.18);color:var(--warn);border-radius:16px;padding:14px 16px;font-size:.9rem;margin-bottom:18px;}
+.w-farmpick{max-width:520px;margin:80px auto;padding:0 18px;}
+.w-farmcard{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:16px 18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease;}
+.w-farmcard:hover{transform:translateY(-1px);box-shadow:0 22px 50px rgba(16,39,59,.08);}
 
-.w-toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:#fff;padding:10px 16px;border-radius:6px;font-size:.85rem;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:320px;}
-.w-toast.error{background:var(--barn);}
-.w-loading{padding:60px;text-align:center;color:var(--ink-muted);}
-.w-configwarn{max-width:520px;margin:70px auto;padding:20px;background:#FBF1E8;border:1px solid var(--clay);border-radius:8px;font-size:.86rem;line-height:1.6;}
-.w-configwarn code{background:rgba(0,0,0,.06);padding:1px 5px;border-radius:3px;}
+.w-toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:#fff;padding:14px 18px;border-radius:16px;font-size:.92rem;z-index:200;box-shadow:0 22px 60px rgba(16,39,59,.24);max-width:360px;}
+.w-toast.error{background:var(--warn);}
+.w-loading{padding:70px;text-align:center;color:var(--ink-muted);font-size:1rem;}
+.w-configwarn{max-width:560px;margin:70px auto;padding:24px;background:#fff4f2;border:1px solid rgba(216,93,66,.18);border-radius:20px;font-size:.95rem;line-height:1.7;}
+.w-configwarn code{background:rgba(0,0,0,.05);padding:1px 6px;border-radius:6px;}
 
-@media (max-width:640px){
+@media (max-width:760px){
   .warren-app{flex-direction:column;}
-  .w-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;padding:10px;}
-  .w-brand,.w-farmswitch{width:100%;}
-  .w-nav{flex-direction:row;flex-wrap:wrap;}
+  .w-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;align-items:flex-start;padding:18px;box-shadow:none;border-right:none;border-bottom:1px solid var(--line);}
+  .w-brand,.w-farmswitch{width:100%;padding:0;}
+  .w-nav{flex-direction:row;flex-wrap:wrap;gap:10px;padding:0;}
+  .w-navitem{flex:1 1 calc(50% - 10px);border-radius:16px;justify-content:center;text-align:center;}
   .w-sidefoot{display:none;}
-  .w-main{max-height:none;}
+  .w-main{max-height:none;padding:22px 18px;}
   .w-row2{grid-template-columns:1fr;}
   .w-detailgrid{grid-template-columns:1fr;}
+  .w-authwrap,.w-authcard,.w-farmpick{padding:0 14px;}
+  .w-authcard,.w-farmcard,.w-panel,.w-modal{border-radius:20px;}
+  .w-field input,.w-field select,.w-field textarea{font-size:.98rem;}
+  .w-table th,.w-table td{padding:12px 10px;}
 }
 </style>
 </head>
@@ -130,6 +148,7 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 
 <script>
 (function(){
@@ -171,29 +190,32 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
   var auth = firebase.auth();
   var db = firebase.firestore();
   var fx = firebase.functions();
+  var messaging = null;
+  var FCM_VAPID_KEY = ''; // Optional: set your Firebase Web Push VAPID key if required for getToken
 
   var CURRENCY_SYMBOLS = {USD:'$',EUR:'€',GBP:'£',ZAR:'R',SZL:'E',KES:'KSh',NGN:'₦',GHS:'GH₵',INR:'₹',AUD:'A$',CAD:'C$',BWP:'P',ZMW:'K'};
   var CURRENCIES = ['USD','EUR','GBP','ZAR','SZL','KES','NGN','GHS','INR','AUD','CAD','BWP','ZMW'];
   var ROLE_RANK = {viewer:0, worker:1, supervisor:2, farm_manager:3};
   function can(minRole){ return (ROLE_RANK[currentRole]||0) >= ROLE_RANK[minRole]; }
 
-  var FS_COLLECTION = {rabbits:'rabbits', cages:'cages', litters:'litters', health:'health', feedStock:'feedStock', ledger:'ledger'};
+  var FS_COLLECTION = {rabbits:'rabbits', cages:'cages', litters:'litters', health:'health', feedStock:'feedStock', ledger:'ledger', tasks:'tasks', taskLogs:'taskLogs'};
 
   var currentUser = null;
   var farms = [];
   var currentFarm = null; // {id,name,currency,role}
   var currentRole = 'viewer';
-  var state = {rabbits:[], cages:[], litters:[], health:[], feedStock:[], ledger:[]};
+  var state = {rabbits:[], cages:[], litters:[], health:[], feedStock:[], ledger:[], tasks:[], taskLogs:[]};
   var current = 'dashboard';
   var GEST_DAYS = 31;
   var appScreen = 'auth'; // auth | pickfarm | newfarm | app
   var authMode = 'login';
   var authError = '';
   var loading = false;
+  var mustChangePassword = false;
 
   // ============ HELPERS ============
   function todayStr(){ return new Date().toISOString().slice(0,10); }
-  function fmtDate(d){ if(!d) return '—'; var dt=new Date(d+'T00:00:00'); if(isNaN(dt)) return d; return dt.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); }
+  function fmtDate(d){ if(!d) return '—'; if (d && typeof d.toDate === 'function') d = d.toDate(); if (typeof d === 'object' && d.seconds != null) d = new Date(d.seconds * 1000); if (typeof d === 'string') d = new Date(d+'T00:00:00'); if (!(d instanceof Date)) d = new Date(d); if(isNaN(d)) return String(d); return d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); }
   function addDays(d,n){ var dt=new Date(d+'T00:00:00'); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10); }
   function daysFromToday(d){ if(!d) return 999; var a=new Date(todayStr()+'T00:00:00'); var b=new Date(d+'T00:00:00'); return Math.round((b-a)/86400000); }
   function esc(s){ return (s===undefined||s===null)?'':String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
@@ -241,9 +263,12 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
 
   async function afterLogin(){
     try{
+      await registerFcmToken();
+      await checkMustChangePassword();
       var snap = await db.collection('memberships').where('uid','==',currentUser.uid).get();
       farms = snap.docs.map(function(d){ var m=d.data(); return {id:m.farmId, name:m.farmName, currency:m.currency, role:m.role}; });
       farms.sort(function(a,b){ return a.name.localeCompare(b.name); });
+      if(mustChangePassword){ renderRoot(); return; }
       if(farms.length===0){ appScreen='newfarm'; renderRoot(); }
       else if(farms.length===1){ await selectFarm(farms[0]); }
       else { appScreen='pickfarm'; renderRoot(); }
@@ -254,6 +279,53 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
     currentFarm = farm; currentRole = farm.role; appScreen='app'; current='dashboard';
     renderRoot();
     await loadFarmData();
+  }
+
+  async function registerFcmToken(){
+    if (!firebase.messaging || !navigator.serviceWorker || !('Notification' in window)) return;
+    try{
+      await registerMessagingServiceWorker();
+      if (!messaging) messaging = firebase.messaging();
+      messaging.onMessage(function(payload){
+        if (payload && payload.notification){
+          var title = payload.notification.title || 'Warren';
+          var body = payload.notification.body || '';
+          showToast(title + ': ' + body);
+          if (Notification.permission === 'granted') {
+            try{ new Notification(title, {body: body, icon: '/favicon.ico'}); }catch(e){ }
+          }
+        }
+      });
+      var permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
+      var token = FCM_VAPID_KEY ? await messaging.getToken({vapidKey: FCM_VAPID_KEY}) : await messaging.getToken();
+      if (!token) return;
+      await db.collection('users').doc(currentUser.uid).collection('fcmTokens').doc(token).set({createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+    }catch(e){ console.warn('Unable to register FCM token:', e); }
+  }
+
+  async function registerMessagingServiceWorker(){
+    try{
+      await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    }catch(e){ console.warn('FCM service worker registration failed:', e); }
+  }
+
+  async function checkMustChangePassword(){
+    mustChangePassword = false;
+    try{
+      var doc = await db.collection('users').doc(currentUser.uid).get();
+      if (doc.exists && doc.data().mustChangePassword) mustChangePassword = true;
+    }catch(e){ console.warn('Could not check password status:', e); }
+  }
+
+  async function submitPasswordChange(password){
+    try{
+      await currentUser.updatePassword(password);
+      await db.collection('users').doc(currentUser.uid).update({mustChangePassword:false});
+      mustChangePassword = false;
+      showToast('Password updated.');
+      await afterLogin();
+    }catch(e){ showToast(friendlyError(e), true); }
   }
 
   function logout(){ auth.signOut(); appScreen='auth'; authMode='login'; authError=''; }
@@ -280,15 +352,21 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
         base.collection('litters').orderBy('createdAt','desc').get(),
         base.collection('health').orderBy('createdAt','desc').get(),
         base.collection('feedStock').orderBy('createdAt','desc').get(),
-        base.collection('ledger').orderBy('createdAt','desc').get()
+        base.collection('ledger').orderBy('createdAt','desc').get(),
+        base.collection('tasks').orderBy('name','asc').get(),
+        base.collection('taskLogs').orderBy('createdAt','desc').get()
       ]);
       state = {rabbits:snapToArr(results[0]), cages:snapToArr(results[1]), litters:snapToArr(results[2]),
-        health:snapToArr(results[3]), feedStock:snapToArr(results[4]), ledger:snapToArr(results[5])};
+        health:snapToArr(results[3]), feedStock:snapToArr(results[4]), ledger:snapToArr(results[5]),
+        tasks:snapToArr(results[6]), taskLogs:snapToArr(results[7])};
     }catch(e){ showToast(friendlyError(e), true); }
     loading = false; renderRoot();
   }
   async function refetch(key){
-    var snap = await db.collection('farms').doc(currentFarm.id).collection(FS_COLLECTION[key]).orderBy('createdAt','desc').get();
+    var query = db.collection('farms').doc(currentFarm.id).collection(FS_COLLECTION[key]);
+    if (key === 'tasks') query = query.orderBy('name','asc');
+    else query = query.orderBy('createdAt','desc');
+    var snap = await query.get();
     state[key] = snapToArr(snap);
   }
   async function createItem(key, body){
@@ -317,7 +395,8 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
   // ============ ROOT RENDER ============
   function renderRoot(){
     var root = document.getElementById('root');
-    if(appScreen==='auth') root.innerHTML = viewAuth();
+    if(mustChangePassword){ root.innerHTML = viewPasswordChange(); }
+    else if(appScreen==='auth') root.innerHTML = viewAuth();
     else if(appScreen==='newfarm') root.innerHTML = viewNewFarm();
     else if(appScreen==='pickfarm') root.innerHTML = viewPickFarm();
     else { root.innerHTML = viewApp(); renderMain(); }
@@ -326,6 +405,15 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
   function wireEvents(){
     var authForm = document.getElementById('w-auth-form');
     if(authForm) authForm.onsubmit = function(e){ e.preventDefault(); handleAuthSubmit(authMode, new FormData(e.target)); };
+    var passwordForm = document.getElementById('w-password-change-form');
+    if(passwordForm) passwordForm.onsubmit = function(e){
+      e.preventDefault();
+      var f = new FormData(e.target);
+      var password = f.get('password');
+      var confirm = f.get('confirmPassword');
+      if (password !== confirm) { showToast('Passwords do not match', true); return; }
+      submitPasswordChange(password);
+    };
     var newFarmForm = document.getElementById('w-newfarm-form');
     if(newFarmForm) newFarmForm.onsubmit = function(e){ e.preventDefault(); var f=new FormData(e.target); createFarm(f.get('name'), f.get('currency')); };
   }
@@ -355,6 +443,16 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
   function setAuthMode(m){ authMode=m; authError=''; renderRoot(); }
 
   // ============ FARM PICK / CREATE ============
+  function viewPasswordChange(){
+    return '<div class="w-authwrap"><div class="w-authcard">'+
+      '<h2>Set a new password</h2><div class="w-sub">Your account was created by your farm manager. Update your password now to continue.</div>'+ 
+      '<form id="w-password-change-form">'+
+        '<div class="w-field"><label>New password</label><input type="password" name="password" required minlength="6"/></div>'+ 
+        '<div class="w-field"><label>Confirm password</label><input type="password" name="confirmPassword" required minlength="6"/></div>'+ 
+        '<button type="submit" class="w-btn w-btn-primary" style="width:100%;justify-content:center;">Save password</button>'+ 
+      '</form>'+ 
+    '</div></div>';
+  }
   function viewPickFarm(){
     return '<div class="w-farmpick"><h2 style="margin-bottom:14px;">Choose a farm</h2>'+
       farms.map(function(f){
@@ -388,6 +486,7 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
     {id:'housing', label:'Housing', icon:'M3 10l9-7 9 7v10H3z'},
     {id:'feed', label:'Feed', icon:'M6 3h12l1 4H5l1-4zM5 7l1.5 13a1 1 0 001 1h9a1 1 0 001-1L19 7M9 11h6M9 15h6'},
     {id:'ledger', label:'Ledger', icon:'M4 4h16v16H4zM4 9h16M9 9v11'},
+    {id:'tasks', label:'Tasks', icon:'M5 13l4 4L19 7'},
     {id:'team', label:'Team', icon:'M17 20v-1a4 4 0 00-4-4H7a4 4 0 00-4 4v1M13 8a4 4 0 11-8 0 4 4 0 018 0zM22 20v-1a3.5 3.5 0 00-2.7-3.4M16 4.2a3.5 3.5 0 010 6.7'}
   ];
 
@@ -418,6 +517,96 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
     }).join('');
   }
   function go(view){ current = view; renderMain(); }
+
+  function viewTasks(){
+    var rows = state.tasks.slice().sort(function(a,b){return a.name.localeCompare(b.name);});
+    return '<div class="w-headrow"><div><h2>Tasks</h2><div class="w-sub">Record and schedule daily, weekly, and monthly activities.</div></div>'+ 
+      (can('worker')?'<button class="w-btn w-btn-primary" onclick="WApp.openTaskModal()">+ Add task</button>':'')+'</div>'+ 
+      '<div class="w-panel">'+(rows.length? taskTable(rows) : '<div class="w-empty"><p>No tasks created yet.</p></div>')+'</div>'+ 
+      '<div class="w-panel"><h3>Recent task activity</h3>'+ taskLogsPanel() +'</div>';
+  }
+
+  function taskTable(rows){
+    return '<table class="w-table"><thead><tr><th>Task</th><th>Frequency</th><th>Next due</th><th>Notes</th><th>Action</th></tr></thead><tbody>'+ 
+      rows.map(function(t){
+        return '<tr><td>'+esc(t.name)+'</td><td>'+esc(t.frequency)+'</td><td class="mono">'+esc(t.nextDue||t.dueDate||'—')+'</td><td style="color:var(--ink-muted);">'+esc(t.notes||'')+'</td>'+ 
+          '<td style="white-space:nowrap;">'+
+            (can('worker')? '<button class="w-btn w-btn-ghost w-btn-sm" onclick="WApp.completeTask(\''+t.id+'\')">Mark done</button> <button class="w-btn w-btn-ghost w-btn-sm" onclick="WApp.openTaskModal(\''+t.id+'\')">Edit</button>' : '—')+
+          '</td></tr>';
+      }).join('')+'</tbody></table>';
+  }
+
+  function openTaskModal(id){
+    var t = id ? state.tasks.find(function(x){return x.id===id;}) : null;
+    var html = '<div class="w-modal"><h3>'+(t?'Edit task':'Add task')+'</h3><form id="w-task-form">'+
+      '<div class="w-row2"><div class="w-field"><label>Task name</label><input name="name" required value="'+esc(t?t.name:'')+'"/></div>'+ 
+      '<div class="w-field"><label>Frequency</label><select name="frequency">'+
+        ['daily','weekly','monthly'].map(function(freq){return '<option value="'+freq+'" '+(t&&t.frequency===freq?'selected':'')+'>'+freq.charAt(0).toUpperCase()+freq.slice(1)+'</option>';}).join('')+
+      '</select></div></div>'+ 
+      '<div class="w-row2"><div class="w-field"><label>Next due</label><input type="date" name="nextDue" value="'+esc(t?t.nextDue:'')+'"/></div>'+ 
+      '<div class="w-field"><label>Notes</label><input name="notes" value="'+esc(t?t.notes:'')+'"/></div></div>'+ 
+      '<div class="w-modalfoot">'+(t&&can('supervisor')?'<button type="button" class="w-btn w-btn-danger" onclick="WApp.deleteTask(\''+t.id+'\')">Delete</button>':'<span></span>')+ 
+      '<span style="flex:1"></span><button type="button" class="w-btn w-btn-ghost" onclick="WApp.closeModal()">Cancel</button>'+ 
+      '<button type="submit" class="w-btn w-btn-primary">Save task</button></div></form></div>';
+    showModal(html);
+    document.getElementById('w-task-form').onsubmit = async function(e){
+      e.preventDefault(); var f = new FormData(e.target);
+      var body = {name:f.get('name'), frequency:f.get('frequency'), nextDue:f.get('nextDue')||null, notes:f.get('notes')};
+      try{ if(t) await updateItem('tasks', t.id, body); else await createItem('tasks', body); closeModal(); renderMain(); showToast('Task saved'); }
+      catch(err){ showToast(friendlyError(err), true); }
+    };
+  }
+
+  async function deleteTask(id){
+    if(!confirm('Delete this task?')) return;
+    try{ await deleteItemApi('tasks', id); closeModal(); renderMain(); showToast('Task deleted'); }
+    catch(err){ showToast(friendlyError(err), true); }
+  }
+
+  function taskLogsPanel(){
+    var logs = state.taskLogs.slice().sort(function(a,b){
+      return new Date(b.completedAt) - new Date(a.completedAt);
+    }).slice(0,8);
+    if(!logs.length) return '<div class="w-empty"><p>No task activity recorded yet.</p></div>';
+    return '<table class="w-table"><thead><tr><th>Date</th><th>Task</th><th>By</th><th>Frequency</th></tr></thead><tbody>'+
+      logs.map(function(log){
+        return '<tr><td class="mono">'+fmtDate(log.completedAt)+'</td><td>'+esc(log.taskName)+'</td><td>'+esc(log.completedBy || '—')+'</td><td>'+esc(log.frequency)+'</td></tr>';
+      }).join('')+'</tbody></table>';
+  }
+
+  function nextDueForFrequency(dateStr, frequency){
+    var current = new Date((dateStr||todayStr())+'T00:00:00');
+    if (frequency==='daily') current.setDate(current.getDate()+1);
+    else if (frequency==='weekly') current.setDate(current.getDate()+7);
+    else if (frequency==='monthly') current.setMonth(current.getMonth()+1);
+    return current.toISOString().slice(0,10);
+  }
+
+  async function completeTask(id){
+    var task = state.tasks.find(function(x){return x.id===id;});
+    if(!task) return;
+    try{
+      var today = todayStr();
+      var nextDue = nextDueForFrequency(today, task.frequency);
+      await Promise.all([
+        db.collection('farms').doc(currentFarm.id).collection('tasks').doc(id).update({nextDue: nextDue}),
+        db.collection('farms').doc(currentFarm.id).collection('taskLogs').add({
+          taskId: id,
+          taskName: task.name,
+          frequency: task.frequency,
+          completedAt: today,
+          completedBy: currentUser.displayName || currentUser.email || '',
+          notes: 'Completed via Tasks',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        })
+      ]);
+      await refetch('tasks');
+      await refetch('taskLogs');
+      renderMain();
+      showToast('Task marked complete');
+    }catch(err){ showToast(friendlyError(err), true); }
+  }
+
   function renderMain(){
     renderNav();
     var main = document.getElementById('w-main'); if(!main) return;
@@ -429,6 +618,7 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
     else if(current==='housing') main.innerHTML = viewHousing();
     else if(current==='feed') main.innerHTML = viewFeed();
     else if(current==='ledger') main.innerHTML = viewLedger();
+    else if(current==='tasks') main.innerHTML = viewTasks();
     else if(current==='team') { main.innerHTML = '<div class="w-loading">Loading team…</div>'; loadAndRenderTeam(); }
   }
   function stat(n,l){ return '<div class="w-stat"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
@@ -456,18 +646,44 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
         }
       }
     });
+    state.tasks.forEach(function(t){
+      var due = t.nextDue || t.dueDate;
+      if(!due) return;
+      var days = daysFromToday(due);
+      if(days<=0){
+        alerts.push('<div class="w-alert">🗓️ <div><b>'+esc(t.name)+'</b> '+(days===0?'is due today':'is overdue by '+Math.abs(days)+' day'+(Math.abs(days)===1?'':'s'))+' ('+fmtDate(due)+')</div></div>');
+      }
+    });
     state.cages.forEach(function(c){
       var occ = active.filter(function(r){return r.cageId===c.id;}).length;
       if(occ>c.capacity) alerts.push('<div class="w-alert">🏠 <div>Hutch <b>'+esc(c.label)+'</b> is over capacity ('+occ+'/'+c.capacity+')</div></div>');
     });
     var lowStock = state.feedStock.filter(isLowStock);
     lowStock.forEach(function(f){ alerts.push('<div class="w-alert">🌾 <div><b>'+esc(f.name)+'</b> is low: '+f.quantity+' '+esc(f.unit)+' left (reorder at '+f.reorderLevel+')</div></div>'); });
+    var dueTaskCount = state.tasks.filter(function(t){ var due = t.nextDue || t.dueDate; return due && daysFromToday(due) <= 0; }).length;
+    var overdueTaskCount = state.tasks.filter(function(t){ var due = t.nextDue || t.dueDate; return due && daysFromToday(due) < 0; }).length;
+    var lowStockCount = lowStock.length;
+    var upcomingLitters = expecting.length;
+
+    var actionButtons = '';
+    if (can('worker')) actionButtons += '<button class="w-btn w-btn-primary w-quickaction" onclick="WApp.openRabbitModal()">Add rabbit</button>';
+    if (can('worker')) actionButtons += '<button class="w-btn w-btn-ghost w-quickaction" onclick="WApp.openTaskModal()">Add task</button>';
+    if (can('farm_manager')) actionButtons += '<button class="w-btn w-btn-ghost w-quickaction" onclick="WApp.go(\'team\')">Manage team</button>';
 
     var emptyState = state.rabbits.length===0 ? ('<div class="w-panel w-empty"><p>Your herd ledger is empty. Add your first rabbit to get started.</p>'+(can('worker')?'<button class="w-btn w-btn-primary" onclick="WApp.openRabbitModal()">+ Add a rabbit</button>':'')+'</div>') : '';
 
-    return '<div class="w-headrow"><div><h2>Dashboard</h2><div class="w-sub">'+esc(currentFarm.name)+' &middot; '+fmtDate(todayStr())+'</div></div></div>'+
+    return '<div class="w-panel w-hero"><div class="w-headrow"><div><h2>Dashboard</h2><div class="w-sub">'+esc(currentFarm.name)+' &middot; '+fmtDate(todayStr())+'</div></div></div>'+ 
+      '<div class="w-hero-copy">Keep the farm running smoothly with one quick view of the most important updates. You have '+ dueTaskCount +' task'+(dueTaskCount===1?'':'s')+' due, with '+ overdueTaskCount +' overdue.</div>'+ 
+      '<div class="w-dashboard-summary">'+
+        '<div class="w-dashboard-card"><div class="title">Tasks due</div><div class="value">'+dueTaskCount+'</div><div class="meta">'+overdueTaskCount+' overdue</div></div>'+ 
+        '<div class="w-dashboard-card"><div class="title">Low feed items</div><div class="value">'+lowStockCount+'</div><div class="meta">'+(lowStockCount?'Requires reorder':'All stocked')+'</div></div>'+ 
+        '<div class="w-dashboard-card"><div class="title">Litters expecting</div><div class="value">'+upcomingLitters+'</div><div class="meta">'+(upcomingLitters?'Check due dates':'None scheduled')+'</div></div>'+ 
+        '<div class="w-dashboard-card"><div class="title">Hutches</div><div class="value">'+state.cages.length+'</div><div class="meta">Capacity status below</div></div>'+ 
+      '</div>'+ 
+      (actionButtons? '<div class="w-quickactions">'+actionButtons+'</div>' : '')+
+      '</div>'+
       emptyState+
-      '<div class="w-stats">'+stat(active.length,'Active rabbits')+stat(does,'Does')+stat(bucks,'Bucks')+stat(expecting.length,'Litters expecting')+stat(state.cages.length,'Hutches')+stat(lowStock.length,'Low feed items')+'</div>'+
+      '<div class="w-stats">'+stat(active.length,'Active rabbits')+stat(does,'Does')+stat(bucks,'Bucks')+stat(expecting.length,'Litters expecting')+stat(state.cages.length,'Hutches')+stat(lowStock.length,'Low feed items')+stat(dueTaskCount,'Tasks due')+'</div>'+
       (alerts.length? ('<div class="w-panel"><h3>Attention needed</h3>'+alerts.join('')+'</div>') : '')+
       '<div class="w-panel"><h3>Recent activity</h3>'+recentActivity()+'</div>';
   }
@@ -856,8 +1072,8 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
         '<div class="w-field"><label>Currency</label><select name="currency">'+CURRENCIES.map(function(c){return '<option value="'+c+'" '+(c===currentFarm.currency?'selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'+
         '<div style="grid-column:1/-1;"><button type="submit" class="w-btn w-btn-primary">Save farm settings</button></div>'+
       '</form></div>') : '')+
-      (can('farm_manager')? ('<div class="w-panel"><h3>Add a team member</h3><form id="w-addmember-form" class="w-row2">'+
-        '<div class="w-field"><label>Email (must already have a Warren account)</label><input type="email" name="email" required/></div>'+
+      (can('farm_manager')? ('<div class="w-panel"><h3>Add a team member</h3><div class="w-sub" style="margin-bottom:10px;">If the member does not yet have an account, the app will create one and issue a temporary PIN.</div><form id="w-addmember-form" class="w-row2">'+
+        '<div class="w-field"><label>Email</label><input type="email" name="email" required/></div>'+
         '<div class="w-field"><label>Role</label><select name="role">'+roleOpts.map(function(r){return '<option value="'+r+'">'+r.replace('_',' ')+'</option>';}).join('')+'</select></div>'+
         '<div style="grid-column:1/-1;"><button type="submit" class="w-btn w-btn-primary">Add member</button></div>'+
       '</form></div>') : '')+
@@ -892,8 +1108,13 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
     e.preventDefault(); var f = new FormData(e.target);
     try{
       var addFn = fx.httpsCallable('addFarmMember');
-      await addFn({farmId:currentFarm.id, email:f.get('email'), role:f.get('role')});
-      showToast('Member added'); loadAndRenderTeam();
+      var res = await addFn({farmId:currentFarm.id, email:f.get('email'), role:f.get('role')});
+      if (res.data && res.data.newAccount) {
+        showToast('Member created. Temporary PIN: ' + res.data.tempPin);
+      } else {
+        showToast('Member added');
+      }
+      loadAndRenderTeam();
     }catch(err){ showToast(friendlyError(err), true); }
   }
   async function changeRole(uid, role){
@@ -929,7 +1150,8 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;}
     openLitterModal:openLitterModal, deleteLitter:deleteLitter, openHealthModal:openHealthModal,
     openCageModal:openCageModal, deleteCage:deleteCage, openFeedItemModal:openFeedItemModal,
     deleteFeedItem:deleteFeedItem, openFeedAdjustModal:openFeedAdjustModal, openLedgerModal:openLedgerModal,
-    closeModal:closeModal, setHerdFilter:setHerdFilter, changeRole:changeRole, removeMember:removeMember
+    closeModal:closeModal, setHerdFilter:setHerdFilter, changeRole:changeRole, removeMember:removeMember,
+    openTaskModal:openTaskModal, deleteTask:deleteTask, completeTask:completeTask
   };
 
 })();

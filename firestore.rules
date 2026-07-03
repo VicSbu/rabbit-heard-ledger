@@ -71,6 +71,26 @@ service cloud.firestore {
         allow create, update: if hasRole(farmId, 'worker');
         allow delete: if hasRole(farmId, 'supervisor');
       }
+      match /tasks/{id} {
+        allow read: if isMember(farmId);
+        allow create, update: if hasRole(farmId, 'worker');
+        allow delete: if hasRole(farmId, 'supervisor');
+      }
+      match /taskLogs/{id} {
+        allow read: if isMember(farmId);
+        allow create, update: if hasRole(farmId, 'worker');
+        allow delete: if false;
+      }
+    }
+
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+      match /fcmTokens/{tokenId} {
+        allow read: if false;
+        allow create: if signedIn() && request.auth.uid == uid;
+        allow delete: if signedIn() && request.auth.uid == uid;
+        allow update: if false;
+      }
     }
 
     // Denormalized "my farms" index, doc id = `${uid}_${farmId}`.
