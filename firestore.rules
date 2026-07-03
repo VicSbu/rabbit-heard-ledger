@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    function isMember(farmId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/farms/$(farmId)/members/$(request.auth.uid));
+    }
+
+    function roleOf(farmId) {
+      return get(/databases/$(database)/documents/farms/$(farmId)/members/$(request.auth.uid)).data.role;
+    }
+
+    function rank(role) {
+      return role == 'farm_manager' ? 3 : role == 'supervisor' ? 2 : role == 'worker' ? 1 : 0;
+    }
+
+    // True if the caller is a member of farmId with at least minRole.
+    function hasRole(farmId, minRole) {
+      return isMember(farmId) && rank(roleOf(farmId)) >= rank(minRole);
+    }
+
+    match /farms/{farmId} {
+      allow get: if isMember(farmId);
+      allow list: if false;               // farms are discovered via the `memberships` collection
+      allow create: if false;             // only the createFarm Cloud Function may create farms
+      allow update: if hasRole(farmId, 'farm_manager');
+      allow delete: if false;
+
+      match /members/{uid} {
+        allow read: if isMember(farmId);
+        allow create: if false;           // only the createFarm / addFarmMember Cloud Functions
+        allow update: if hasRole(farmId, 'farm_manager');
+        allow delete: if hasRole(farmId, 'farm_manager');
+      }
+
+      match /rabbits/{id} {
+        allow read: if isMember(farmId);
+        allow create, update: if hasRole(farmId, 'worker');
+        allow delete: if hasRole(farmId, 'supervisor');
+      }
+      match /cages/{id} {
+        allow read: if isMember(farmId);
+        allow create, update: if hasRole(farmId, 'worker');
+        allow delete: if hasRole(farmId, 'supervisor');
+      }
+      match /litters/{id} {
+        allow read: if isMember(farmId);
+        allow create, update: if hasRole(farmId, 'worker');
+        allow delete: if hasRole(farmId, 'supervisor');
+      }
+      match /health/{id} {
+        allow read: if isMember(farmId);
+        allow create, update: if hasRole(farmId, 'worker');
+        allow delete: if hasRole(farmId, 'supervisor');
+      }
+      match /feedStock/{id} {
+        allow read: if isMember(farmId);
+        allow create, update: if hasRole(farmId, 'worker');
+        allow delete: if hasRole(farmId, 'supervisor');
+      }
+      match /feedTx/{id} {
+        allow read: if isMember(farmId);
+        allow create: if hasRole(farmId, 'worker');
+        allow update, delete: if false;   // transactions are an immutable log
+      }
+      match /ledger/{id} {
+        allow read: if isMember(farmId);
+        allow create, update: if hasRole(farmId, 'worker');
+        allow delete: if hasRole(farmId, 'supervisor');
+      }
+    }
+
+    // Denormalized "my farms" index, doc id = `${uid}_${farmId}`.
+    // Written only by Cloud Functions or by a farm_manager updating their own farm's copies.
+    match /memberships/{membershipId} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if false;
+      allow update: if signedIn() && hasRole(resource.data.farmId, 'farm_manager');
+      allow delete: if signedIn() && hasRole(resource.data.farmId, 'farm_manager');
+    }
+  }
+}
