@@ -15,13 +15,13 @@ html,body{margin:0;height:100%;background:#f4f7fb;color:var(--ink);}
   --warn:#d85d42; --line:rgba(16,39,59,.12);
   --radius:18px; --radius-sm:12px;
 }
-body{font-family:'Inter',sans-serif;}
+body{font-family:'Inter',sans-serif;overflow-x:hidden;}
 h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink);}
 .mono{font-family:'JetBrains Mono',monospace;}
 
 .warren-app{min-height:100vh;display:flex;background:var(--bg);}
-.w-sidebar{width:250px;flex-shrink:0;background:rgba(255,255,255,.95);border-right:1px solid var(--line);padding:24px 20px;display:flex;flex-direction:column;box-shadow:2px 0 28px rgba(16,39,59,.06);}
-.w-brand{display:flex;align-items:center;gap:10px;padding:0 4px 18px 4px;margin-bottom:18px;}
+.w-sidebar{width:250px;flex-shrink:0;background:rgba(255,255,255,.95);border-right:1px solid var(--line);padding:24px 20px;display:flex;flex-direction:column;box-shadow:2px 0 28px rgba(16,39,59,.06);position:sticky;top:0;align-self:flex-start;height:100vh;overflow:auto;}
+.w-brand{display:flex;align-items:center;gap:10px;padding:0 4px 18px 4px;margin-bottom:18px;position:relative;}
 .w-brand h1{font-size:1.6rem;color:var(--accent-strong);letter-spacing:.35px;}
 .w-brand span{display:block;font-size:.75rem;color:var(--ink-muted);text-transform:uppercase;letter-spacing:1.5px;}
 .w-farmswitch{padding:0 4px 18px 4px;border-bottom:1px solid var(--line);margin-bottom:18px;}
@@ -36,6 +36,8 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
 .w-sidefoot button{margin-top:10px;display:block;width:100%;}
 
 .w-main{flex:1;padding:32px 34px;overflow-y:auto;max-height:100vh;}
+.w-hamburger{display:none;position:fixed;top:18px;right:18px;z-index:95;align-items:center;justify-content:center;width:46px;height:46px;border:none;background:var(--accent);color:#fff;border-radius:999px;cursor:pointer;box-shadow:0 16px 32px rgba(52,105,168,.18);}
+.w-hamburger:hover{background:var(--accent-strong);}
 .w-headrow{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;flex-wrap:wrap;gap:16px;}
 .w-headrow h2{font-size:1.8rem;}
 .w-sub{color:var(--ink-muted);font-size:.92rem;margin-top:4px;}
@@ -113,6 +115,14 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
 .w-authtab{flex:1;text-align:center;padding:14px;font-size:.95rem;font-weight:700;color:var(--ink-muted);cursor:pointer;border-bottom:3px solid transparent;}
 .w-authtab.active{color:var(--accent-strong);border-bottom-color:var(--accent-strong);}
 .w-autherr{background:#fff4f2;border:1px solid rgba(216,93,66,.18);color:var(--warn);border-radius:16px;padding:14px 16px;font-size:.9rem;margin-bottom:18px;}
+.w-password-wrap{position:relative;display:flex;align-items:center;}
+.w-password-wrap input{padding-right:80px;}
+.w-password-toggle{position:absolute;right:10px;border:none;background:transparent;color:var(--accent);font-weight:700;font-size:.8rem;padding:6px 8px;cursor:pointer;}
+.w-auth-actions{margin-top:10px;text-align:right;}
+.w-link-btn{background:none;border:none;padding:0;color:var(--accent);font-weight:700;cursor:pointer;font-size:.9rem;}
+.w-notice-banner{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;background:linear-gradient(135deg, rgba(52,105,168,.12), rgba(52,105,168,.05));border:1px solid rgba(52,105,168,.22);border-radius:20px;padding:16px 18px;margin-bottom:16px;box-shadow:0 16px 36px rgba(16,39,59,.06);}
+.w-notice-banner b{display:block;margin-bottom:6px;color:var(--accent-strong);} 
+.w-notice-close{border:none;background:transparent;color:var(--ink-muted);font-size:1.15rem;cursor:pointer;padding:2px 6px;}
 .w-farmpick{max-width:520px;margin:80px auto;padding:0 18px;}
 .w-farmcard{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:16px 18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease;}
 .w-farmcard:hover{transform:translateY(-1px);box-shadow:0 22px 50px rgba(16,39,59,.08);}
@@ -125,12 +135,18 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
 
 @media (max-width:760px){
   .warren-app{flex-direction:column;}
-  .w-sidebar{width:100%;flex-direction:row;flex-wrap:wrap;align-items:flex-start;padding:18px;box-shadow:none;border-right:none;border-bottom:1px solid var(--line);}
+  .w-sidebar{width:280px;flex-direction:column;flex-wrap:nowrap;align-items:flex-start;padding:18px;box-shadow:none;border-right:none;border-bottom:none;position:fixed;right:-320px;top:0;height:100vh;z-index:90;transition:right .28s ease;width:min(280px,100%);}
+  .w-sidebar.open{right:0;}
   .w-brand,.w-farmswitch{width:100%;padding:0;}
-  .w-nav{flex-direction:row;flex-wrap:wrap;gap:10px;padding:0;}
-  .w-navitem{flex:1 1 calc(50% - 10px);border-radius:16px;justify-content:center;text-align:center;}
+  .w-nav{flex-direction:column;gap:10px;padding:0;}
+  .w-navitem{flex:1 1 auto;border-radius:16px;justify-content:flex-start;text-align:left;}
   .w-sidefoot{display:none;}
-  .w-main{max-height:none;padding:22px 18px;}
+  .w-sidebar.open .w-sidefoot{display:block;width:100%;}
+  .w-main{max-height:none;padding:22px 18px;padding-top:78px;}
+  .w-mobile-overlay{display:none;position:fixed;inset:0;background:rgba(16,39,59,.35);z-index:80;}
+  .w-mobile-overlay.open{display:block;}
+  .w-hamburger{display:inline-flex;}
+  .w-nav{width:100%;}
   .w-row2{grid-template-columns:1fr;}
   .w-detailgrid{grid-template-columns:1fr;}
   .w-authwrap,.w-authcard,.w-farmpick{padding:0 14px;}
@@ -212,6 +228,7 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
   var authError = '';
   var loading = false;
   var mustChangePassword = false;
+  var memberNotice = null;
 
   // ============ HELPERS ============
   function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -232,6 +249,16 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
     el.textContent = msg;
     document.body.appendChild(el);
     setTimeout(function(){ el.remove(); }, 3800);
+  }
+  function dismissMemberNotice(){ memberNotice = null; if(current==='team') loadAndRenderTeam(); else renderRoot(); }
+  async function requestPasswordReset(){
+    var emailInput = document.querySelector('#w-auth-form input[name="email"]');
+    var email = (emailInput && emailInput.value ? emailInput.value : '').trim();
+    if(!email){ showToast('Enter your email address first.', true); return; }
+    try{
+      await auth.sendPasswordResetEmail(email);
+      showToast('Password reset email sent.');
+    }catch(e){ showToast(friendlyError(e), true); }
   }
   function friendlyError(e){
     var msg = (e && e.message) || String(e);
@@ -405,6 +432,7 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
   function wireEvents(){
     var authForm = document.getElementById('w-auth-form');
     if(authForm) authForm.onsubmit = function(e){ e.preventDefault(); handleAuthSubmit(authMode, new FormData(e.target)); };
+    bindPasswordToggles();
     var passwordForm = document.getElementById('w-password-change-form');
     if(passwordForm) passwordForm.onsubmit = function(e){
       e.preventDefault();
@@ -416,6 +444,19 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
     };
     var newFarmForm = document.getElementById('w-newfarm-form');
     if(newFarmForm) newFarmForm.onsubmit = function(e){ e.preventDefault(); var f=new FormData(e.target); createFarm(f.get('name'), f.get('currency')); };
+  }
+
+  function bindPasswordToggles(){
+    Array.prototype.forEach.call(document.querySelectorAll('.w-password-toggle'), function(btn){
+      btn.onclick = function(e){
+        e.preventDefault();
+        var input = document.getElementById(btn.getAttribute('data-password-toggle'));
+        if(!input) return;
+        var show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        btn.textContent = show ? 'Hide' : 'Show';
+      };
+    });
   }
 
   // ============ AUTH SCREEN ============
@@ -434,7 +475,8 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
         '<form id="w-auth-form">'+
           (authMode==='register'? '<div class="w-field"><label>Name</label><input name="name" required/></div>' : '')+
           '<div class="w-field"><label>Email</label><input type="email" name="email" required/></div>'+
-          '<div class="w-field"><label>Password</label><input type="password" name="password" required minlength="6"/></div>'+
+          '<div class="w-field"><label>Password</label><div class="w-password-wrap"><input id="w-auth-password" type="password" name="password" required minlength="6"/><button type="button" class="w-password-toggle" data-password-toggle="w-auth-password">Show</button></div></div>'+ 
+          '<div class="w-auth-actions"><button type="button" class="w-link-btn" onclick="WApp.requestPasswordReset()">Forgot password or PIN?</button></div>'+ 
           '<button type="submit" class="w-btn w-btn-primary" style="width:100%;justify-content:center;">'+(authMode==='login'?'Log in':'Create account')+'</button>'+
         '</form>'+
       '</div>'+
@@ -447,8 +489,8 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
     return '<div class="w-authwrap"><div class="w-authcard">'+
       '<h2>Set a new password</h2><div class="w-sub">Your account was created by your farm manager. Update your password now to continue.</div>'+ 
       '<form id="w-password-change-form">'+
-        '<div class="w-field"><label>New password</label><input type="password" name="password" required minlength="6"/></div>'+ 
-        '<div class="w-field"><label>Confirm password</label><input type="password" name="confirmPassword" required minlength="6"/></div>'+ 
+        '<div class="w-field"><label>New password</label><div class="w-password-wrap"><input id="w-new-password" type="password" name="password" required minlength="6"/><button type="button" class="w-password-toggle" data-password-toggle="w-new-password">Show</button></div></div>'+ 
+        '<div class="w-field"><label>Confirm password</label><div class="w-password-wrap"><input id="w-confirm-password" type="password" name="confirmPassword" required minlength="6"/><button type="button" class="w-password-toggle" data-password-toggle="w-confirm-password">Show</button></div></div>'+ 
         '<button type="submit" class="w-btn w-btn-primary" style="width:100%;justify-content:center;">Save password</button>'+ 
       '</form>'+ 
     '</div></div>';
@@ -492,7 +534,8 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
 
   function viewApp(){
     return '<div class="warren-app">'+
-      '<div class="w-sidebar">'+
+      '<button class="w-hamburger" onclick="WApp.openMenu()" aria-label="Open navigation menu">☰</button>'+
+      '<div class="w-sidebar" id="w-sidebar">'+
         '<div class="w-brand"><svg viewBox="0 0 24 24" fill="none" stroke="#8A3324" stroke-width="1.8" width="26" height="26"><path d="M8 10c-1-3-1-6 1-7 1.2 1 1.5 3.5 1 6M16 10c1-3 1-6-1-7-1.2 1-1.5 3.5-1 6"/><ellipse cx="12" cy="14" rx="6" ry="6.5"/><circle cx="10" cy="12.5" r=".6" fill="#8A3324"/><circle cx="14" cy="12.5" r=".6" fill="#8A3324"/></svg><div><h1>Warren</h1><span>Herd Ledger</span></div></div>'+
         '<div class="w-farmswitch">'+
           (farms.length>1? ('<select onchange="WApp.switchFarm(this.value)">'+farms.map(function(f){return '<option value="'+f.id+'" '+(f.id===currentFarm.id?'selected':'')+'>'+esc(f.name)+'</option>';}).join('')+'</select>') : ('<div style="font-weight:600;font-size:.9rem;">'+esc(currentFarm.name)+'</div>'))+
@@ -505,10 +548,14 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
         '</div>'+
       '</div>'+
       '<div class="w-main" id="w-main"></div>'+
+      '<div class="w-mobile-overlay" id="w-mobile-overlay" onclick="WApp.closeMenu()"></div>'+
     '</div>'+
     '<div id="w-modal-root"></div>';
   }
   async function switchFarm(id){ var f = farms.find(function(x){return x.id===id;}); if(f) await selectFarm(f); }
+
+  function openMenu(){ var sidebar = document.getElementById('w-sidebar'); var overlay = document.getElementById('w-mobile-overlay'); if(sidebar) sidebar.classList.add('open'); if(overlay) overlay.classList.add('open'); }
+  function closeMenu(){ var sidebar = document.getElementById('w-sidebar'); var overlay = document.getElementById('w-mobile-overlay'); if(sidebar) sidebar.classList.remove('open'); if(overlay) overlay.classList.remove('open'); }
 
   function renderNav(){
     var el = document.getElementById('w-nav'); if(!el) return;
@@ -516,7 +563,7 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
       return '<button class="w-navitem '+(current===v.id?'active':'')+'" onclick="WApp.go(\''+v.id+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="'+v.icon+'"/></svg><span>'+v.label+'</span></button>';
     }).join('');
   }
-  function go(view){ current = view; renderMain(); }
+  function go(view){ current = view; renderMain(); closeMenu(); }
 
   function viewTasks(){
     var rows = state.tasks.slice().sort(function(a,b){return a.name.localeCompare(b.name);});
@@ -1067,6 +1114,7 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
   function viewTeam(){
     var roleOpts = ['viewer','worker','supervisor','farm_manager'];
     return '<div class="w-headrow"><div><h2>Team</h2><div class="w-sub">Who has access to '+esc(currentFarm.name)+'</div></div></div>'+
+      (memberNotice? '<div class="w-notice-banner"><div><b>'+esc(memberNotice.title||'Notice')+'</b><div>'+esc(memberNotice.detail||memberNotice.message)+'</div></div><button type="button" class="w-notice-close" onclick="WApp.dismissMemberNotice()">×</button></div>' : '')+
       (can('farm_manager')? ('<div class="w-panel"><h3>Farm settings</h3><form id="w-farmsettings-form" class="w-row2">'+
         '<div class="w-field"><label>Farm name</label><input name="name" value="'+esc(currentFarm.name)+'"/></div>'+
         '<div class="w-field"><label>Currency</label><select name="currency">'+CURRENCIES.map(function(c){return '<option value="'+c+'" '+(c===currentFarm.currency?'selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'+
@@ -1082,7 +1130,7 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
           teamMembers.map(function(m){
             return '<tr><td>'+esc(m.name||'—')+'</td><td class="mono" style="font-size:.78rem;">'+esc(m.email)+'</td>'+
               '<td>'+(can('farm_manager')? ('<select onchange="WApp.changeRole(\''+m.uid+'\',this.value)">'+roleOpts.map(function(r){return '<option value="'+r+'" '+(r===m.role?'selected':'')+'>'+r.replace('_',' ')+'</option>';}).join('')+'</select>') : ('<span class="w-pill pill-moss">'+m.role.replace('_',' ')+'</span>'))+'</td>'+
-              (can('farm_manager')? ('<td><button class="w-btn w-btn-danger w-btn-sm" onclick="WApp.removeMember(\''+m.uid+'\')">Remove</button></td>') : '')+
+              (can('farm_manager')? ('<td><div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="w-btn w-btn-ghost w-btn-sm" onclick="WApp.showMemberPin(\''+m.uid+'\',\''+m.email+'\')">Show PIN</button><button class="w-btn w-btn-ghost w-btn-sm" onclick="WApp.resendSetupEmail(\''+m.uid+'\',\''+m.email+'\')">Resend setup</button><button class="w-btn w-btn-danger w-btn-sm" onclick="WApp.removeMember(\''+m.uid+'\')">Remove</button></div></td>') : '')+
             '</tr>';
           }).join('')+'</tbody></table>') : '<div class="w-empty"><p>No members loaded.</p></div>')+
       '</div>';
@@ -1106,12 +1154,16 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
   }
   async function handleAddMemberSubmit(e){
     e.preventDefault(); var f = new FormData(e.target);
+    var email = String(f.get('email')||'').trim();
     try{
       var addFn = fx.httpsCallable('addFarmMember');
-      var res = await addFn({farmId:currentFarm.id, email:f.get('email'), role:f.get('role')});
+      var res = await addFn({farmId:currentFarm.id, email:email, role:f.get('role')});
       if (res.data && res.data.newAccount) {
-        showToast('Member created. Temporary PIN: ' + res.data.tempPin);
+        var detail = 'Share the temporary PIN with the new user and ask them to sign in. The PIN should be given to the user profile before they set a new password. Temporary PIN: ' + (res.data.tempPin || '—') + '.';
+        if (res.data.emailSent === false) detail += ' If the setup email does not arrive, use the Show PIN helper to share it directly.';
+        memberNotice = {title:'Temporary PIN created', detail:detail};
       } else {
+        memberNotice = null;
         showToast('Member added');
       }
       loadAndRenderTeam();
@@ -1125,6 +1177,33 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
       await batch.commit();
       showToast('Role updated'); loadAndRenderTeam();
     }catch(err){ showToast(friendlyError(err), true); loadAndRenderTeam(); }
+  }
+  async function showMemberPin(uid, email){
+    if(!uid){ showToast('No member selected.', true); return; }
+    try{
+      var doc = await db.collection('users').doc(uid).get();
+      var pin = doc.exists && doc.data().tempPin ? String(doc.data().tempPin) : null;
+      if(pin){
+        memberNotice = {title:'Current temporary PIN', detail:'Share this temporary PIN with the member directly. If the setup email does not arrive, use this PIN: ' + pin + '.'};
+        loadAndRenderTeam();
+        showToast('Temporary PIN ready to share');
+      } else {
+        showToast('No temporary PIN is currently available for this member.', true);
+      }
+    }catch(err){ showToast(friendlyError(err), true); }
+  }
+  async function resendSetupEmail(uid, email){
+    if(!uid || !email){ showToast('No member selected.', true); return; }
+    try{
+      var resendFn = fx.httpsCallable('resendSetupEmail');
+      var res = await resendFn({farmId: currentFarm.id, uid: uid, email: email});
+      var detail = 'A setup email was requested for ' + email + '.';
+      if (res.data && res.data.tempPin) detail += ' Temporary PIN: ' + res.data.tempPin + '.';
+      if (res.data && res.data.emailSent === false) detail += ' If the email does not arrive, use the Show PIN helper to share the temporary PIN directly.';
+      memberNotice = {title:'Setup email requested', detail:detail};
+      loadAndRenderTeam();
+      showToast('Setup email requested');
+    }catch(err){ showToast(friendlyError(err), true); }
   }
   async function removeMember(uid){
     var managers = teamMembers.filter(function(m){return m.role==='farm_manager';});
@@ -1146,7 +1225,8 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
 
   window.WApp = {
     setAuthMode:setAuthMode, pickFarm:pickFarm, goNewFarm:goNewFarm, backToPick:backToPick, logout:logout, switchFarm:switchFarm,
-    go:go, openRabbitModal:openRabbitModal, deleteRabbit:deleteRabbit, openRabbitDetail:openRabbitDetail,
+    openMenu:openMenu, closeMenu:closeMenu, go:go, requestPasswordReset:requestPasswordReset, dismissMemberNotice:dismissMemberNotice, showMemberPin:showMemberPin, resendSetupEmail:resendSetupEmail,
+    openRabbitModal:openRabbitModal, deleteRabbit:deleteRabbit, openRabbitDetail:openRabbitDetail,
     openLitterModal:openLitterModal, deleteLitter:deleteLitter, openHealthModal:openHealthModal,
     openCageModal:openCageModal, deleteCage:deleteCage, openFeedItemModal:openFeedItemModal,
     deleteFeedItem:deleteFeedItem, openFeedAdjustModal:openFeedAdjustModal, openLedgerModal:openLedgerModal,

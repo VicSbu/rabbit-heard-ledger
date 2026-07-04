@@ -1,6 +1,7 @@
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { scheduler } = require('firebase-functions/v2');
 const admin = require('firebase-admin');
+const https = require('https');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -15,6 +16,46 @@ function generatePin() {
 async function ensureUserDoc(uid, mustChangePassword) {
   const userRef = db.collection('users').doc(uid);
   await userRef.set({mustChangePassword: mustChangePassword === true, updatedAt: admin.firestore.FieldValue.serverTimestamp()}, {merge: true});
+}
+
+async function maybeSendSetupEmail(email, tempPin) {
+  if (!email || !tempPin) return false;
+  const sendGridApiKey = process.env.SENDGRID_API_KEY;
+  if (!sendGridApiKey) {
+    console.warn('SendGrid not configured; skipping setup email.');
+    return false;
+  }
+  const payload = JSON.stringify({
+    personalizations: [{ to: [{ email }] }],
+    from: { email: process.env.SENDGRID_FROM_EMAIL || 'no-reply@example.com' },
+    subject: 'Your Warren account details',
+    content: [{ type: 'text/plain', value: `Welcome to Warren.\n\nYour temporary login PIN is: ${tempPin}\n\nPlease sign in with your email address and this PIN, then set a new password.\n` }]
+  });
+  return await new Promise((resolve) => {
+    const req = https.request({
+      hostname: 'api.sendgrid.com',
+      path: '/v3/mail/send',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${sendGridApiKey}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    }, (res) => {
+      if (res.statusCode >= 400) {
+        console.warn('SendGrid setup email failed:', res.statusCode);
+        resolve(false);
+        return;
+      }
+      resolve(true);
+    });
+    req.on('error', (err) => {
+      console.warn('SendGrid setup email error:', err);
+      resolve(false);
+    });
+    req.write(payload);
+    req.end();
+  });
 }
 
 async function collectFcmTokensForFarm(farmId) {
@@ -125,9 +166,13 @@ exports.addFarmMember = onCall(async (request) => {
   );
   if (userRecord.tempPin) {
     const metaRef = db.collection('users').doc(userRecord.uid);
-    batch.set(metaRef, {mustChangePassword:true, createdAt: admin.firestore.FieldValue.serverTimestamp()}, {merge:true});
+    batch.set(metaRef, {mustChangePassword:true, tempPin: userRecord.tempPin, createdAt: admin.firestore.FieldValue.serverTimestamp()}, {merge:true});
   }
   await batch.commit();
+  let emailSent = false;
+  if (userRecord.tempPin) {
+    emailSent = await maybeSendSetupEmail(userRecord.email, userRecord.tempPin);
+  }
 
   return {
     uid: userRecord.uid,
@@ -135,8 +180,40 @@ exports.addFarmMember = onCall(async (request) => {
     name: userRecord.displayName || '',
     role,
     newAccount: !!userRecord.tempPin,
-    tempPin: userRecord.tempPin || null
+    tempPin: userRecord.tempPin || null,
+    emailSent
   };
+});
+
+exports.resendSetupEmail = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'You must be logged in');
+  const { farmId, uid, email } = request.data || {};
+  if (!farmId || (!uid && !email)) {
+    throw new HttpsError('invalid-argument', 'farmId and a member uid or email are required');
+  }
+
+  const callerSnap = await db.collection('farms').doc(farmId).collection('members').doc(request.auth.uid).get();
+  if (!callerSnap.exists || callerSnap.data().role !== 'farm_manager') {
+    throw new HttpsError('permission-denied', 'Only a farm manager can resend setup details');
+  }
+
+  const membersSnap = await db.collection('farms').doc(farmId).collection('members').get();
+  const memberDoc = membersSnap.docs.find((doc) => {
+    if (uid && doc.id === uid) return true;
+    if (email && String(doc.data().email || '').toLowerCase() === String(email).toLowerCase().trim()) return true;
+    return false;
+  });
+  if (!memberDoc) throw new HttpsError('not-found', 'Member not found');
+
+  const memberEmail = String(memberDoc.data().email || email || '').trim().toLowerCase();
+  const userRef = db.collection('users').doc(memberDoc.id);
+  const userSnap = await userRef.get();
+  const existingPin = userSnap.exists && userSnap.data().tempPin ? String(userSnap.data().tempPin) : null;
+  const tempPin = existingPin || generatePin();
+  await userRef.set({mustChangePassword:true, tempPin, updatedAt: admin.firestore.FieldValue.serverTimestamp()}, {merge:true});
+  const emailSent = await maybeSendSetupEmail(memberEmail, tempPin);
+
+  return {email: memberEmail, tempPin, emailSent};
 });
 
 exports.sendScheduledTasks = scheduler.onSchedule('every 24 hours', async (event) => {
