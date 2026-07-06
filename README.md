@@ -1,58 +1,73 @@
-# Warren on Firebase
+# Rabbit Heard Ledger
 
-Everything lives in one Firebase project now:
+Rabbit Heard Ledger is a Firebase-hosted herd management dashboard built to track rabbit farms, animals, litters, health records, feed inventory, and financial ledger entries.
 
-- **Firebase Hosting** — serves `public/index.html`, the whole app
-- **Firebase Authentication** — email/password login
-- **Firestore** — the database (rabbits, litters, health, feed, ledger, farms, members)
-- **Cloud Functions** — two small functions (`createFarm`, `addFarmMember`) for the
-  two operations that need admin privileges; everything else talks to
-  Firestore directly from the browser, secured by `firestore.rules`
+## What this app does
 
-No separate server or Postgres database to run or pay for.
+- User authentication with Firebase Email/Password
+- Farm creation and membership management
+- Role-based access control for farm data
+- Live Firestore-backed tracking of:
+  - rabbits
+  - litters and breeding
+  - health records
+  - feed inventory and transactions
+  - ledger entries and farm finances
+- Minimal server-side logic via Firebase Cloud Functions for secure farm setup and member onboarding
+- Everything else runs client-side in the browser using Firestore and Firebase security rules
 
-## 1. Create the Firebase project
+## Key features
 
-1. Go to [console.firebase.google.com](https://console.firebase.google.com) → **Add project**
-2. In the new project, enable:
-   - **Build → Authentication → Get started → Email/Password** (enable the sign-in method)
-   - **Build → Firestore Database → Create database** (start in production mode — our
-     `firestore.rules` handles security)
-3. **Upgrade to the Blaze (pay-as-you-go) plan.** Cloud Functions require it — but Firebase's
-   free monthly quotas (2M function invocations, generous Firestore reads/writes) mean a
-   farm app like this will very likely cost $0/month in practice.
+- Farm owners can create farms and pick a currency
+- Farm managers can invite or add members by email
+- Members can be assigned roles:
+  - `viewer` — read-only access
+  - `worker` — create and edit farm records
+  - `supervisor` — worker access plus delete permissions
+  - `farm_manager` — full control, including team and farm settings
+- Data is scoped under `farms/{farmId}/...` so each farm is isolated in Firestore
 
-## 2. Get your web app config
+## Project structure
 
-Project settings (gear icon) → **General** → scroll to **Your apps** → **Add app → Web**.
-Give it a nickname, skip hosting setup in the wizard (we already have `firebase.json`),
-and copy the `firebaseConfig` object it shows you.
+- `public/` — single-page web app served by Firebase Hosting
+  - `index.html` — app shell, UI, and Firebase setup
+  - `firebase-messaging-sw.js` — service worker for Firebase Messaging
+- `functions/` — Cloud Functions for elevated admin operations
+  - `index.js` — callable functions used by the frontend
+  - `package.json` — function dependencies
+- `firebase.json` — Firebase project configuration
+- `firestore.rules` — Firestore security rules for farm and member access
+- `firestore.indexes.json` — Firestore index configuration
 
-Paste it into `public/index.html`, replacing the placeholder near the top of the
-`<script>` block:
+## Setup
 
-```js
-var firebaseConfig = {
-  apiKey: "...",
-  authDomain: "...",
-  projectId: "...",
-  storageBucket: "...",
-  messagingSenderId: "...",
-  appId: "..."
-};
-```
-
-## 3. Install tools and connect this folder to your project
+1. Install the Firebase CLI:
 
 ```bash
 npm install -g firebase-tools
-firebase login
-
-cd warren-firebase
-firebase use --add          # pick your project, give it an alias like "default"
 ```
 
-## 4. Install Cloud Functions dependencies
+2. Login to Firebase:
+
+```bash
+firebase login
+```
+
+3. Initialize the project alias if not already configured:
+
+```bash
+firebase use --add
+```
+
+4. Create a Firebase project in the console and enable:
+   - Authentication → Email/Password
+   - Firestore Database
+
+5. Add a web app in Firebase Console and copy the `firebaseConfig` values.
+
+6. Open `public/index.html` and paste the `firebaseConfig` object into the script near the top.
+
+7. Install Functions dependencies:
 
 ```bash
 cd functions
@@ -60,20 +75,13 @@ npm install
 cd ..
 ```
 
-## 5. Deploy everything
+8. Deploy the app:
 
 ```bash
 firebase deploy
 ```
 
-This pushes Hosting, Firestore rules, and both Cloud Functions in one go. Firebase
-prints your live URL:
-
-```
-https://your-project-id.web.app
-```
-
-To deploy just one piece later (faster iteration):
+To deploy only a specific part later:
 
 ```bash
 firebase deploy --only hosting
@@ -81,58 +89,35 @@ firebase deploy --only firestore:rules
 firebase deploy --only functions
 ```
 
-## 6. Try it
+## Running locally (optional)
 
-Visit your Hosting URL, register an account, and you'll land on "Set up your farm" —
-name it and pick a currency. You're the farm manager. From the **Team** tab you can add
-anyone else who has registered, and set their role:
-
-| Role | Can do |
-|---|---|
-| viewer | Look at everything, change nothing |
-| worker | Add/edit rabbits, litters, health records, feed, ledger |
-| supervisor | Everything worker can, plus delete records |
-| farm_manager | Everything, plus manage members, roles, and farm settings (name, currency) |
-
-## How data isolation works
-
-Every record (`rabbits`, `litters`, `health`, `feedStock`, `feedTx`, `ledger`) lives
-under `farms/{farmId}/...` in Firestore, and `firestore.rules` checks that the
-requesting user has a `farms/{farmId}/members/{uid}` document — and the right role —
-before allowing any read or write. This is enforced by Firestore itself, not by
-frontend code, so it holds even if someone tampers with the page in their browser.
-One farm can never see or touch another farm's data.
-
-## Why two Cloud Functions instead of zero
-
-Almost everything is a direct Firestore read/write from the browser, protected by
-security rules — no server needed. Two things specifically can't be done safely that
-way:
-
-- **`createFarm`** — bootstrapping a brand-new farm plus the creator's "I'm the
-  manager" membership record in one step. Doing this purely with client-side rules
-  risks letting someone self-promote to manager on a farm that already exists (rules
-  can't easily distinguish "creating a new farm" from "editing an existing one" mid-batch).
-- **`addFarmMember`** — looking up another user's account by email requires the Admin
-  Auth API. The client SDK deliberately can't look up other users by email (privacy).
-
-Both functions double-check the caller's permissions server-side before doing anything.
-
-## Local testing (optional)
+Use the Firebase emulator suite for local testing:
 
 ```bash
 firebase emulators:start
 ```
 
-Runs Auth, Firestore, and Functions locally. Point `firebaseConfig` at nothing special —
-just also call `firebase.auth().useEmulator(...)` etc. if you want to test against the
-emulator instead of production (not wired up by default in `index.html`, to keep the
-file simple — ask if you want that added).
+If you want to test locally, you may also configure the app to use the Auth, Firestore, and Functions emulators.
 
-## What's not included (by design, to keep v1 shippable)
+## Cloud Functions
 
-- Email-based invite links — v1 requires the invitee to register first, then a manager
-  adds them by email
-- Password reset flow (Firebase Auth supports this out of the box —
-  `auth.sendPasswordResetEmail(email)` — just not wired into the UI yet)
-- Removing the "last manager" is only guarded client-side, not by security rules
+This project uses two callable Cloud Functions:
+
+- `createFarm` — creates a new farm document and bootstraps the current user as its `farm_manager`
+- `addFarmMember` — looks up or creates a user by email, then adds them to the farm with a role
+
+These functions are required because the frontend cannot safely perform these operations with Firestore security rules alone.
+
+## Optional email onboarding
+
+The functions code can send setup emails when a new user is created if `SENDGRID_API_KEY` is configured in the Functions environment. Without this, a new member will still be created, but email delivery is skipped.
+
+## Notes
+
+- The frontend is a static Firebase-hosted app with no separate backend server
+- Firestore security rules enforce membership and role-based access
+- Farm data is isolated by `farmId`, so one farm cannot access another farm's records
+
+## License
+
+This repository does not include a license file. Add one if you want to publish or share the project publicly.

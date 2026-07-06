@@ -22,7 +22,7 @@ var messaging = firebase.messaging();
 
 // Shows a notification when a push arrives while the app isn't in the foreground.
 messaging.onBackgroundMessage(function(payload) {
-  var title = (payload.notification && payload.notification.title) || 'Warren';
+  var title = (payload.notification && payload.notification.title) || 'Rabbit Heard Ledger';
   var options = {
     body: (payload.notification && payload.notification.body) || '',
     icon: '/favicon.ico'

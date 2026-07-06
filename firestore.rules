@@ -26,14 +26,14 @@ service cloud.firestore {
       allow get: if isMember(farmId);
       allow list: if false;               // farms are discovered via the `memberships` collection
       allow create: if false;             // only the createFarm Cloud Function may create farms
-      allow update: if hasRole(farmId, 'farm_manager');
+      allow update: if false;            // farm settings updates are performed by Cloud Functions
       allow delete: if false;
 
       match /members/{uid} {
         allow read: if isMember(farmId);
         allow create: if false;           // only the createFarm / addFarmMember Cloud Functions
-        allow update: if hasRole(farmId, 'farm_manager');
-        allow delete: if hasRole(farmId, 'farm_manager');
+        allow update: if false;          // role changes are performed by Cloud Functions
+        allow delete: if false;          // removals are performed by Cloud Functions
       }
 
       match /rabbits/{id} {
@@ -58,27 +58,24 @@ service cloud.firestore {
       }
       match /feedStock/{id} {
         allow read: if isMember(farmId);
-        allow create, update: if hasRole(farmId, 'worker');
-        allow delete: if hasRole(farmId, 'supervisor');
+        allow create, update, delete: if false;  // feed item changes are performed by Cloud Functions
       }
       match /feedTx/{id} {
         allow read: if isMember(farmId);
-        allow create: if hasRole(farmId, 'worker');
+        allow create: if false;       // feed transactions are written by Cloud Functions
         allow update, delete: if false;   // transactions are an immutable log
       }
       match /ledger/{id} {
         allow read: if isMember(farmId);
-        allow create, update: if hasRole(farmId, 'worker');
-        allow delete: if hasRole(farmId, 'supervisor');
+        allow create, update, delete: if false;  // ledger writes are performed by Cloud Functions
       }
       match /tasks/{id} {
         allow read: if isMember(farmId);
-        allow create, update: if hasRole(farmId, 'worker');
-        allow delete: if hasRole(farmId, 'supervisor');
+        allow create, update, delete: if false;  // task changes are performed by Cloud Functions
       }
       match /taskLogs/{id} {
         allow read: if isMember(farmId);
-        allow create, update: if hasRole(farmId, 'worker');
+        allow create, update: if false;   // task completion logs are written by Cloud Functions
         allow delete: if false;
       }
     }
@@ -98,8 +95,8 @@ service cloud.firestore {
     match /memberships/{membershipId} {
       allow read: if signedIn() && resource.data.uid == request.auth.uid;
       allow create: if false;
-      allow update: if signedIn() && hasRole(resource.data.farmId, 'farm_manager');
-      allow delete: if signedIn() && hasRole(resource.data.farmId, 'farm_manager');
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
