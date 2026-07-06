@@ -10,6 +10,9 @@ const db = admin.firestore();
 const CURRENCIES = ['USD','EUR','GBP','ZAR','SZL','KES','NGN','GHS','INR','AUD','CAD','BWP','ZMW'];
 const ROLES = ['viewer', 'worker', 'supervisor', 'farm_manager'];
 const TASK_FREQUENCIES = ['daily', 'weekly', 'monthly'];
+const TASK_STATUSES = ['active', 'paused', 'archived'];
+const TASK_RECURRENCE_MODES = ['rolling', 'strict'];
+const LEDGER_TYPES = ['Sale', 'Expense', 'Feed', 'Other'];
 
 function sendJavaScript(res, relativePath) {
   res.set('Content-Type', 'application/javascript; charset=utf-8');
@@ -33,17 +36,22 @@ async function ensureUserDoc(uid, mustChangePassword) {
 }
 
 async function maybeSendSetupEmail(email, tempPin) {
-  if (!email || !tempPin) return false;
+  if (!email || !tempPin) return { sent: false, reason: 'missing-email-or-pin' };
   const sendGridApiKey = process.env.SENDGRID_API_KEY;
   if (!sendGridApiKey) {
     console.warn('SendGrid not configured; skipping setup email.');
-    return false;
+    return { sent: false, reason: 'sendgrid-api-key-missing' };
+  }
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL;
+  if (!fromEmail) {
+    console.warn('SendGrid sender email is not configured; skipping setup email.');
+    return { sent: false, reason: 'sendgrid-from-email-missing' };
   }
   const payload = JSON.stringify({
     personalizations: [{ to: [{ email }] }],
-    from: { email: process.env.SENDGRID_FROM_EMAIL || 'no-reply@example.com' },
+    from: { email: fromEmail },
     subject: 'Your Warren account details',
-    content: [{ type: 'text/plain', value: `Welcome to Warren.\n\nYour temporary login PIN is: ${tempPin}\n\nPlease sign in with your email address and this PIN, then set a new password.\n` }]
+    content: [{ type: 'text/plain', value: `Welcome to Rabbit Herd Ledger.\n\nYour temporary login PIN is: ${tempPin}\n\nPlease sign in with your email address and this PIN, then set a new password.\n` }]
   });
   return await new Promise((resolve) => {
     const req = https.request({
@@ -58,14 +66,14 @@ async function maybeSendSetupEmail(email, tempPin) {
     }, (res) => {
       if (res.statusCode >= 400) {
         console.warn('SendGrid setup email failed:', res.statusCode);
-        resolve(false);
+        resolve({ sent: false, reason: `sendgrid-http-${res.statusCode}` });
         return;
       }
-      resolve(true);
+      resolve({ sent: true, reason: null });
     });
     req.on('error', (err) => {
       console.warn('SendGrid setup email error:', err);
-      resolve(false);
+      resolve({ sent: false, reason: 'sendgrid-request-error' });
     });
     req.write(payload);
     req.end();
@@ -82,6 +90,19 @@ async function collectFcmTokensForFarm(farmId) {
   });
   await Promise.all(queries);
   return Array.from(tokens);
+}
+
+async function deleteFcmTokens(tokenIds) {
+  if (!tokenIds || !tokenIds.length) return;
+  const docIdField = admin.firestore.FieldPath.documentId();
+  for (let i = 0; i < tokenIds.length; i += 10) {
+    const chunk = tokenIds.slice(i, i + 10);
+    const snap = await db.collectionGroup('fcmTokens').where(docIdField, 'in', chunk).get();
+    if (snap.empty) continue;
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
 }
 
 async function assertFarmManager(farmId, uid) {
@@ -109,6 +130,33 @@ function normalizeCurrency(currency) {
 
 function trimString(value) {
   return String(value || '').trim();
+}
+
+function normalizeWebsite(value) {
+  const trimmed = trimString(value);
+  if (!trimmed) return '';
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const parsed = new URL(withProtocol);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('Unsupported URL protocol');
+    }
+    return parsed.toString();
+  } catch (error) {
+    throw new HttpsError('invalid-argument', 'Website must be a valid URL');
+  }
+}
+
+async function assertTeamManagerRole(farmId, uid) {
+  const memberSnap = await db.collection('farms').doc(farmId).collection('members').doc(uid).get();
+  if (!memberSnap.exists) {
+    throw new HttpsError('permission-denied', 'You do not have access to this farm');
+  }
+  const role = memberSnap.data().role;
+  if (ROLES.indexOf(role) < ROLES.indexOf('supervisor')) {
+    throw new HttpsError('permission-denied', 'Only a supervisor or farm manager can manage team members');
+  }
+  return role;
 }
 
 function optionalTrimmed(value) {
@@ -152,6 +200,21 @@ function nextDueForFrequency(dateStr, frequency) {
   return date.toISOString().slice(0, 10);
 }
 
+function computeNextDue(task, completedAt) {
+  const mode = trimString(task.recurrenceMode || 'rolling').toLowerCase();
+  if (mode !== 'strict') {
+    return nextDueForFrequency(completedAt, task.frequency);
+  }
+  let base = trimString(task.nextDue || task.dueDate || completedAt);
+  if (!base) base = completedAt;
+  let next = nextDueForFrequency(base, task.frequency);
+  // Keep strict schedule aligned forward if completion happened late.
+  while (next <= completedAt) {
+    next = nextDueForFrequency(next, task.frequency);
+  }
+  return next;
+}
+
 function todayUtcString() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -159,16 +222,74 @@ function todayUtcString() {
 function taskPayloadFromData(data) {
   const name = trimString(data.name);
   const frequency = trimString(data.frequency).toLowerCase();
+  const status = trimString(data.status || 'active').toLowerCase();
+  const recurrenceMode = trimString(data.recurrenceMode || 'rolling').toLowerCase();
   if (!name) throw new HttpsError('invalid-argument', 'Task name is required');
   if (!TASK_FREQUENCIES.includes(frequency)) {
     throw new HttpsError('invalid-argument', 'Task frequency must be daily, weekly, or monthly');
   }
+  if (!TASK_STATUSES.includes(status)) {
+    throw new HttpsError('invalid-argument', 'Task status must be active, paused, or archived');
+  }
+  if (!TASK_RECURRENCE_MODES.includes(recurrenceMode)) {
+    throw new HttpsError('invalid-argument', 'Task recurrence mode must be rolling or strict');
+  }
   return {
     name,
     frequency,
+    status,
+    recurrenceMode,
     nextDue: data.nextDue ? requireDateString(data.nextDue, 'Task next due date') : null,
+    assignedToUid: optionalTrimmed(data.assignedToUid),
     notes: trimString(data.notes),
   };
+}
+
+async function enrichTaskAssignee(farmId, payload) {
+  if (!payload.assignedToUid) {
+    payload.assignedToUid = null;
+    payload.assignedToName = '';
+    return payload;
+  }
+  const memberRef = db.collection('farms').doc(farmId).collection('members').doc(payload.assignedToUid);
+  const memberSnap = await memberRef.get();
+  if (!memberSnap.exists) {
+    throw new HttpsError('invalid-argument', 'Assigned member is not part of this farm');
+  }
+  const member = memberSnap.data() || {};
+  payload.assignedToName = trimString(member.name || member.email || payload.assignedToUid);
+  return payload;
+}
+
+function validTimezone(value) {
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone: value }).format(new Date());
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function ymdInTimezone(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((p) => p.type === 'year')?.value;
+  const month = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+}
+
+function dueValueToDate(dueValue) {
+  if (!dueValue) return null;
+  const parsed = (typeof dueValue.toDate === 'function')
+    ? dueValue.toDate()
+    : new Date(`${String(dueValue)}T00:00:00`);
+  if (!(parsed instanceof Date) || Number.isNaN(parsed.getTime())) return null;
+  return parsed;
 }
 
 function feedPayloadFromData(data) {
@@ -195,12 +316,19 @@ function ledgerPayloadFromData(data) {
   const type = trimString(data.type);
   const category = trimString(data.category);
   if (!type) throw new HttpsError('invalid-argument', 'Ledger type is required');
+  if (!LEDGER_TYPES.includes(type)) {
+    throw new HttpsError('invalid-argument', 'Ledger type must be Sale, Expense, Feed, or Other');
+  }
   if (!category) throw new HttpsError('invalid-argument', 'Ledger category is required');
+  const amount = parseNumber(data.amount, 'Ledger amount');
+  if (amount <= 0) {
+    throw new HttpsError('invalid-argument', 'Ledger amount must be greater than zero');
+  }
   return {
     date,
     type,
     category,
-    amount: parseNumber(data.amount, 'Ledger amount'),
+    amount,
     rabbitId: optionalTrimmed(data.rabbitId),
     notes: trimString(data.notes),
   };
@@ -228,6 +356,13 @@ exports.createFarm = onCall(async (request) => {
   batch.set(farmRef, {
     name: String(name).trim(),
     currency: cur,
+    timezone: 'UTC',
+    address: '',
+    website: '',
+    contactNumbers: '',
+    contactEmail: '',
+    contactPerson: '',
+    notes: '',
     ownerId: uid,
     createdAt: admin.firestore.FieldValue.serverTimestamp()
   });
@@ -259,7 +394,10 @@ exports.addFarmMember = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'farmId, email, and a valid role are required');
   }
 
-  await assertFarmManager(farmId, request.auth.uid);
+  const actorRole = await assertTeamManagerRole(farmId, request.auth.uid);
+  if (actorRole !== 'farm_manager' && role === 'farm_manager') {
+    throw new HttpsError('permission-denied', 'Only a farm manager can assign the farm manager role');
+  }
 
   let userRecord;
   const emailNorm = String(email).toLowerCase().trim();
@@ -303,8 +441,11 @@ exports.addFarmMember = onCall(async (request) => {
   }
   await batch.commit();
   let emailSent = false;
+  let emailReason = null;
   if (userRecord.tempPin) {
-    emailSent = await maybeSendSetupEmail(userRecord.email, userRecord.tempPin);
+    const emailResult = await maybeSendSetupEmail(userRecord.email, userRecord.tempPin);
+    emailSent = !!(emailResult && emailResult.sent);
+    emailReason = emailResult && emailResult.reason ? emailResult.reason : null;
   }
 
   return {
@@ -314,13 +455,25 @@ exports.addFarmMember = onCall(async (request) => {
     role,
     newAccount: !!userRecord.tempPin,
     tempPin: userRecord.tempPin || null,
-    emailSent
+    emailSent,
+    emailReason
   };
 });
 
 exports.updateFarmSettings = onCall(async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'You must be logged in');
-  const { farmId, name, currency } = request.data || {};
+  const {
+    farmId,
+    name,
+    currency,
+    timezone,
+    address,
+    website,
+    contactNumbers,
+    contactEmail,
+    contactPerson,
+    notes,
+  } = request.data || {};
   if (!farmId || !name || !String(name).trim()) {
     throw new HttpsError('invalid-argument', 'farmId and a farm name are required');
   }
@@ -332,8 +485,23 @@ exports.updateFarmSettings = onCall(async (request) => {
 
   const trimmedName = String(name).trim();
   const cur = normalizeCurrency(currency);
+  const tz = trimString(timezone || 'UTC') || 'UTC';
+  if (!validTimezone(tz)) {
+    throw new HttpsError('invalid-argument', 'Timezone must be a valid IANA timezone, e.g. Africa/Johannesburg');
+  }
+  const payload = {
+    name: trimmedName,
+    currency: cur,
+    timezone: tz,
+    address: trimString(address),
+    website: normalizeWebsite(website),
+    contactNumbers: trimString(contactNumbers),
+    contactEmail: trimString(contactEmail).toLowerCase(),
+    contactPerson: trimString(contactPerson),
+    notes: trimString(notes),
+  };
   const batch = db.batch();
-  batch.update(farmRef, { name: trimmedName, currency: cur });
+  batch.update(farmRef, payload);
 
   const membersSnap = await farmRef.collection('members').get();
   membersSnap.docs.forEach((memberDoc) => {
@@ -341,7 +509,7 @@ exports.updateFarmSettings = onCall(async (request) => {
   });
 
   await batch.commit();
-  return { id: farmId, name: trimmedName, currency: cur };
+  return { id: farmId, ...payload };
 });
 
 exports.updateMemberRole = onCall(async (request) => {
@@ -351,12 +519,20 @@ exports.updateMemberRole = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'farmId, uid, and a valid role are required');
   }
 
-  await assertFarmManager(farmId, request.auth.uid);
+  const actorRole = await assertTeamManagerRole(farmId, request.auth.uid);
   const memberRef = db.collection('farms').doc(farmId).collection('members').doc(uid);
   const memberSnap = await memberRef.get();
   if (!memberSnap.exists) throw new HttpsError('not-found', 'Member not found');
 
   const memberData = memberSnap.data();
+  if (actorRole !== 'farm_manager') {
+    if (memberData.role === 'farm_manager') {
+      throw new HttpsError('permission-denied', 'Only a farm manager can edit another farm manager');
+    }
+    if (role === 'farm_manager') {
+      throw new HttpsError('permission-denied', 'Only a farm manager can assign the farm manager role');
+    }
+  }
   const managersSnap = await db.collection('farms').doc(farmId).collection('members').where('role', '==', 'farm_manager').get();
   const isLastManager = memberData.role === 'farm_manager' && managersSnap.size <= 1 && role !== 'farm_manager';
   if (isLastManager) {
@@ -378,12 +554,15 @@ exports.removeFarmMember = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'farmId and uid are required');
   }
 
-  await assertFarmManager(farmId, request.auth.uid);
+  const actorRole = await assertTeamManagerRole(farmId, request.auth.uid);
   const memberRef = db.collection('farms').doc(farmId).collection('members').doc(uid);
   const memberSnap = await memberRef.get();
   if (!memberSnap.exists) throw new HttpsError('not-found', 'Member not found');
 
   const memberData = memberSnap.data();
+  if (actorRole !== 'farm_manager' && memberData.role === 'farm_manager') {
+    throw new HttpsError('permission-denied', 'Only a farm manager can remove a farm manager');
+  }
   const managersSnap = await db.collection('farms').doc(farmId).collection('members').where('role', '==', 'farm_manager').get();
   const isLastManager = memberData.role === 'farm_manager' && managersSnap.size <= 1;
   if (isLastManager) {
@@ -405,7 +584,7 @@ exports.resendSetupEmail = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'farmId and a member uid or email are required');
   }
 
-  await assertFarmManager(farmId, request.auth.uid);
+  const actorRole = await assertTeamManagerRole(farmId, request.auth.uid);
 
   const membersSnap = await db.collection('farms').doc(farmId).collection('members').get();
   const memberDoc = membersSnap.docs.find((doc) => {
@@ -415,15 +594,22 @@ exports.resendSetupEmail = onCall(async (request) => {
   });
   if (!memberDoc) throw new HttpsError('not-found', 'Member not found');
 
+  const memberRole = memberDoc.data().role;
+  if (actorRole !== 'farm_manager' && memberRole === 'farm_manager') {
+    throw new HttpsError('permission-denied', 'Only a farm manager can resend setup details for a farm manager');
+  }
+
   const memberEmail = String(memberDoc.data().email || email || '').trim().toLowerCase();
   const userRef = db.collection('users').doc(memberDoc.id);
   const userSnap = await userRef.get();
   const existingPin = userSnap.exists && userSnap.data().tempPin ? String(userSnap.data().tempPin) : null;
   const tempPin = existingPin || generatePin();
   await userRef.set({mustChangePassword:true, tempPin, updatedAt: admin.firestore.FieldValue.serverTimestamp()}, {merge:true});
-  const emailSent = await maybeSendSetupEmail(memberEmail, tempPin);
+  const emailResult = await maybeSendSetupEmail(memberEmail, tempPin);
+  const emailSent = !!(emailResult && emailResult.sent);
+  const emailReason = emailResult && emailResult.reason ? emailResult.reason : null;
 
-  return {email: memberEmail, tempPin, emailSent};
+  return {email: memberEmail, tempPin, emailSent, emailReason};
 });
 
 exports.saveTask = onCall(async (request) => {
@@ -432,7 +618,7 @@ exports.saveTask = onCall(async (request) => {
   if (!farmId || !task) throw new HttpsError('invalid-argument', 'farmId and task are required');
 
   await assertFarmRole(farmId, request.auth.uid, 'worker');
-  const payload = taskPayloadFromData(task);
+  const payload = await enrichTaskAssignee(farmId, taskPayloadFromData(task));
   const tasksRef = db.collection('farms').doc(farmId).collection('tasks');
 
   if (taskId) {
@@ -463,7 +649,7 @@ exports.deleteTask = onCall(async (request) => {
 
 exports.completeTask = onCall(async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'You must be logged in');
-  const { farmId, taskId } = request.data || {};
+  const { farmId, taskId, completion } = request.data || {};
   if (!farmId || !taskId) throw new HttpsError('invalid-argument', 'farmId and taskId are required');
 
   await assertFarmRole(farmId, request.auth.uid, 'worker');
@@ -473,23 +659,29 @@ exports.completeTask = onCall(async (request) => {
   if (!taskSnap.exists) throw new HttpsError('not-found', 'Task not found');
 
   const task = taskSnap.data();
+  if ((task.status || 'active') !== 'active') {
+    throw new HttpsError('failed-precondition', 'Only active tasks can be marked done');
+  }
   const completedAt = todayUtcString();
-  const nextDue = nextDueForFrequency(completedAt, task.frequency);
+  const nextDue = computeNextDue(task, completedAt);
   const completedBy = trimString(request.auth.token.name || request.auth.token.email || '');
+  const completionNotes = trimString(completion && completion.notes);
+  const attachmentUrl = trimString(completion && completion.attachmentUrl);
   const logRef = farmRef.collection('taskLogs').doc();
   const batch = db.batch();
-  batch.update(taskRef, { nextDue });
+  batch.update(taskRef, { nextDue, lastCompletedAt: completedAt, lastCompletedBy: completedBy });
   batch.set(logRef, {
     taskId,
     taskName: task.name,
     frequency: task.frequency,
     completedAt,
     completedBy,
-    notes: 'Completed via Tasks',
+    notes: completionNotes || 'Completed via Tasks',
+    attachmentUrl: attachmentUrl || '',
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
   await batch.commit();
-  return { id: taskId, nextDue, completedAt, completedBy };
+  return { id: taskId, nextDue, completedAt, completedBy, notes: completionNotes, attachmentUrl };
 });
 
 exports.saveFeedItem = onCall(async (request) => {
@@ -592,6 +784,13 @@ exports.createLedgerEntry = onCall(async (request) => {
 
   await assertFarmRole(farmId, request.auth.uid, 'worker');
   const payload = ledgerPayloadFromData(entry);
+  if (payload.rabbitId) {
+    const rabbitRef = db.collection('farms').doc(farmId).collection('rabbits').doc(payload.rabbitId);
+    const rabbitSnap = await rabbitRef.get();
+    if (!rabbitSnap.exists) {
+      throw new HttpsError('invalid-argument', 'Related rabbit does not exist in this farm');
+    }
+  }
   const entryRef = db.collection('farms').doc(farmId).collection('ledger').doc();
   await entryRef.set({ ...payload, createdAt: admin.firestore.FieldValue.serverTimestamp() });
   return { id: entryRef.id, ...payload };
@@ -599,48 +798,97 @@ exports.createLedgerEntry = onCall(async (request) => {
 
 exports.sendScheduledTasks = scheduler.onSchedule('every 24 hours', async (event) => {
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
   const farmsSnap = await db.collection('farms').get();
-  const payloads = [];
+  const reminderJobs = [];
 
   await Promise.all(farmsSnap.docs.map(async (farmDoc) => {
     const farmId = farmDoc.id;
+    const farm = farmDoc.data() || {};
+    const timezone = validTimezone(trimString(farm.timezone || '')) ? trimString(farm.timezone) : 'UTC';
+    const today = ymdInTimezone(now, timezone);
+    const farmRef = db.collection('farms').doc(farmId);
     const tasksSnap = await db.collection('farms').doc(farmId).collection('tasks').get();
     if (tasksSnap.empty) return;
-
     const tokens = await collectFcmTokensForFarm(farmId);
     if (!tokens.length) return;
 
-    tasksSnap.docs.forEach((taskDoc) => {
+    await Promise.all(tasksSnap.docs.map(async (taskDoc) => {
       const task = taskDoc.data();
       if (!task.name || !task.frequency) return;
+      if ((task.status || 'active') !== 'active') return;
       const dueValue = task.nextDue || task.dueDate;
       if (!dueValue) return;
-      const due = (typeof dueValue.toDate === 'function')
-        ? dueValue.toDate().toISOString().slice(0, 10)
-        : new Date(dueValue).toISOString().slice(0, 10);
+      const dueDate = dueValueToDate(dueValue);
+      if (!dueDate) return;
+      const due = ymdInTimezone(dueDate, timezone);
       if (due !== today) return;
-      tokens.forEach((token) => {
-        payloads.push({token: token, notification: {
+
+      const reminderRef = farmRef.collection('taskReminders').doc(`${taskDoc.id}_${today}`);
+      const reminderSnap = await reminderRef.get();
+      if (reminderSnap.exists) return;
+      reminderJobs.push({
+        farmId,
+        taskId: taskDoc.id,
+        date: today,
+        timezone,
+        reminderRef,
+        notification: {
           title: 'Farm task due',
           body: task.name + ' is scheduled for today.',
-        }, data: {
+        },
+        data: {
           farmId,
           taskId: taskDoc.id,
-          type: 'taskReminder'
-        }});
+          type: 'taskReminder',
+        },
+        tokens,
       });
-    });
+    }));
   }));
 
-  if (!payloads.length) return;
+  if (!reminderJobs.length) return;
+
   let totalSuccess = 0;
   let totalFailure = 0;
-  for (let i = 0; i < payloads.length; i += 500) {
-    const batch = payloads.slice(i, i + 500);
-    const response = await admin.messaging().sendEachForMulticast(batch);
-    totalSuccess += response.successCount;
-    totalFailure += response.failureCount;
+  for (const job of reminderJobs) {
+    let successForTask = 0;
+    let failureForTask = 0;
+    for (let i = 0; i < job.tokens.length; i += 500) {
+      const tokenBatch = job.tokens.slice(i, i + 500);
+      const response = await admin.messaging().sendEachForMulticast({
+        tokens: tokenBatch,
+        notification: job.notification,
+        data: job.data,
+      });
+      successForTask += response.successCount;
+      failureForTask += response.failureCount;
+
+      // Drop invalid/expired tokens to reduce repeated failures.
+      const invalidCodes = {
+        'messaging/registration-token-not-registered': true,
+        'messaging/invalid-registration-token': true,
+      };
+      const invalidTokenIds = [];
+      response.responses.forEach((r, idx) => {
+        if (!r.success && r.error && invalidCodes[r.error.code]) {
+          invalidTokenIds.push(tokenBatch[idx]);
+        }
+      });
+      if (invalidTokenIds.length) await deleteFcmTokens(invalidTokenIds);
+    }
+    totalSuccess += successForTask;
+    totalFailure += failureForTask;
+
+    if (successForTask > 0) {
+      await job.reminderRef.set({
+        taskId: job.taskId,
+        date: job.date,
+        timezone: job.timezone,
+        sentSuccessCount: successForTask,
+        sentFailureCount: failureForTask,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
   }
   console.log('Task reminders sent:', totalSuccess, 'successes,', totalFailure, 'failures');
 });

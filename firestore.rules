@@ -86,7 +86,8 @@ service cloud.firestore {
         allow read: if false;
         allow create: if signedIn() && request.auth.uid == uid;
         allow delete: if signedIn() && request.auth.uid == uid;
-        allow update: if false;
+        // FCM SDK can re-write an existing token doc when refreshing registration data.
+        allow update: if signedIn() && request.auth.uid == uid;
       }
     }
 
