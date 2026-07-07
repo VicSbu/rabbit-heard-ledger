@@ -51,6 +51,8 @@
   var currentFarm = null; // {id,name,currency,role}
   var currentRole = 'viewer';
   var state = {rabbits:[], cages:[], litters:[], health:[], feedStock:[], ledger:[], tasks:[], taskLogs:[]};
+  var liveUnsubs = [];
+  var liveSyncKeys = {rabbits:true, cages:true, litters:true};
   var current = 'dashboard';
   var GEST_DAYS = 31;
   var PALPATION_DAYS = 14;
@@ -76,6 +78,23 @@
   function feedItemById(id){ return state.feedStock.find(function(f){return f.id===id;}); }
   function isLowStock(item){ return Number(item.quantity) <= Number(item.reorderLevel); }
   function snapToArr(snap){ return snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }); }
+  function normalizeTag(value){ return String(value||'').trim().toUpperCase(); }
+  function safeDateValue(value){
+    if(!value) return null;
+    if(value && typeof value.toDate === 'function') return value.toDate();
+    if(typeof value === 'object' && value.seconds != null) return new Date(value.seconds * 1000);
+    if(typeof value === 'string') return new Date(value+'T00:00:00');
+    var d = new Date(value);
+    return isNaN(d) ? null : d;
+  }
+  function ageDays(dob){
+    var d = safeDateValue(dob);
+    if(!d) return -1;
+    var now = new Date(todayStr()+'T00:00:00');
+    var then = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    return Math.round((now-then)/86400000);
+  }
+  function hasLiveSync(key){ return !!liveSyncKeys[key]; }
   function dataAttrs(attrs){
     return Object.keys(attrs).filter(function(key){ return attrs[key] !== undefined && attrs[key] !== null; }).map(function(key){
       return ' data-' + key + '="' + esc(attrs[key]) + '"';
@@ -151,6 +170,12 @@
       closeModal();
       return openRabbitModal(target.dataset.id);
     }
+    if(action === 'toggle-herd-select') return toggleHerdSelection(target.dataset.id);
+    if(action === 'herd-select-visible') return selectVisibleHerdRows();
+    if(action === 'herd-clear-selection') return clearHerdSelection();
+    if(action === 'herd-bulk-status') return bulkSetHerdStatus(target.dataset.status);
+    if(action === 'herd-bulk-cage') return bulkAssignHerdCage();
+    if(action === 'set-herd-page') return setHerdPage(target.dataset.page);
   }
 
   function handleUiChange(action, target){
@@ -165,7 +190,7 @@
   }
 
   function handleUiInput(action, target){
-    if(action === 'set-herd-filter') return setHerdFilter(target.dataset.key, target.value);
+    if(action === 'set-herd-filter') return setHerdFilterInput(target.dataset.key, target.value);
   }
 
   bindUiEvents();
@@ -195,7 +220,7 @@
   // ============ AUTH ============
   auth.onAuthStateChanged(function(user){
     if(user){ currentUser = user; afterLogin(); }
-    else { currentUser=null; farms=[]; currentFarm=null; appScreen='auth'; renderRoot(); }
+    else { stopLiveFarmSync(); currentUser=null; farms=[]; currentFarm=null; appScreen='auth'; renderRoot(); }
   });
 
   async function handleAuthSubmit(mode, formData){
@@ -230,6 +255,7 @@
   }
 
   async function selectFarm(farm){
+    stopLiveFarmSync();
     currentFarm = Object.assign({}, farm);
     currentRole = farm.role;
     appScreen='app';
@@ -313,7 +339,7 @@
     }catch(e){ showToast(friendlyError(e), true); }
   }
 
-  function logout(){ auth.signOut(); appScreen='auth'; authMode='login'; authError=''; }
+  function logout(){ stopLiveFarmSync(); auth.signOut(); appScreen='auth'; authMode='login'; authError=''; }
 
   async function createFarm(name, currency){
     try{
@@ -327,6 +353,28 @@
   }
 
   // ============ DATA LOADING ============
+  function stopLiveFarmSync(){
+    liveUnsubs.forEach(function(unsub){
+      try{ if(typeof unsub === 'function') unsub(); }
+      catch(e){ console.warn('Live sync unsubscribe failed:', e); }
+    });
+    liveUnsubs = [];
+  }
+  function startLiveFarmSync(base){
+    stopLiveFarmSync();
+    Object.keys(liveSyncKeys).forEach(function(key){
+      var col = FS_COLLECTION[key];
+      if(!col) return;
+      var query = base.collection(col).orderBy('createdAt','desc');
+      var unsub = query.onSnapshot(function(snap){
+        state[key] = snapToArr(snap);
+        if(appScreen==='app') renderMain();
+      }, function(err){
+        console.warn('Live sync error for '+key+':', err);
+      });
+      liveUnsubs.push(unsub);
+    });
+  }
   async function loadFarmData(){
     loading = true; renderRoot();
     try{
@@ -344,6 +392,7 @@
       state = {rabbits:snapToArr(results[0]), cages:snapToArr(results[1]), litters:snapToArr(results[2]),
         health:snapToArr(results[3]), feedStock:snapToArr(results[4]), ledger:snapToArr(results[5]),
         tasks:snapToArr(results[6]), taskLogs:snapToArr(results[7])};
+      startLiveFarmSync(base);
     }catch(e){ showToast(friendlyError(e), true); }
     loading = false; renderRoot();
   }
@@ -360,7 +409,7 @@
     var ref = await col.add(payload);
     var doc = await ref.get();
     var row = Object.assign({id:doc.id}, doc.data());
-    state[key].unshift(row);
+    if(!hasLiveSync(key)) state[key].unshift(row);
     return row;
   }
   async function updateItem(key, id, body){
@@ -368,13 +417,15 @@
     await ref.update(body);
     var doc = await ref.get();
     var row = Object.assign({id:doc.id}, doc.data());
-    var idx = state[key].findIndex(function(x){return x.id===id;});
-    if(idx>-1) state[key][idx]=row;
+    if(!hasLiveSync(key)){
+      var idx = state[key].findIndex(function(x){return x.id===id;});
+      if(idx>-1) state[key][idx]=row;
+    }
     return row;
   }
   async function deleteItemApi(key, id){
     await db.collection('farms').doc(currentFarm.id).collection(FS_COLLECTION[key]).doc(id).delete();
-    state[key] = state[key].filter(function(x){return x.id!==id;});
+    if(!hasLiveSync(key)) state[key] = state[key].filter(function(x){return x.id!==id;});
   }
   async function saveTaskApi(taskId, task){
     var saveTaskFn = fx.httpsCallable('saveTask');
@@ -869,28 +920,207 @@
   }
 
   // ============ HERD ============
-  var herdFilter = {status:'all', sex:'all', q:''};
+  var herdFilter = {status:'all', sex:'all', isKit:'all', cageId:'all', sort:'tag_asc', q:''};
+  var herdSelection = {};
+  var herdPage = 1;
+  var HERD_PAGE_SIZE = 25;
+  var herdSearchTimer = null;
+  var herdVisibleRows = [];
+  function selectedHerdIds(){
+    return Object.keys(herdSelection).filter(function(id){
+      return herdSelection[id] && !!rabbitById(id);
+    });
+  }
+  function clearHerdSelection(){
+    herdSelection = {};
+    if(current==='herd') renderMain();
+  }
+  function toggleHerdSelection(id){
+    if(!id) return;
+    herdSelection[id] = !herdSelection[id];
+    if(!herdSelection[id]) delete herdSelection[id];
+    if(current==='herd') renderMain();
+  }
+  function selectVisibleHerdRows(){
+    herdVisibleRows.forEach(function(r){ herdSelection[r.id] = true; });
+    if(current==='herd') renderMain();
+  }
+  function setHerdPage(page){
+    var n = parseInt(page, 10);
+    if(!n || isNaN(n) || n < 1) n = 1;
+    herdPage = n;
+    if(current==='herd') renderMain();
+  }
+  function setHerdFilterInput(k,v){
+    if(k !== 'q') return setHerdFilter(k,v);
+    herdFilter[k]=v;
+    herdPage = 1;
+    if(herdSearchTimer) clearTimeout(herdSearchTimer);
+    herdSearchTimer = setTimeout(function(){
+      herdSearchTimer = null;
+      if(current==='herd') renderMain();
+    }, 180);
+  }
+  async function bulkUpdateRabbits(ids, updates){
+    if(!ids.length) return;
+    var base = db.collection('farms').doc(currentFarm.id).collection('rabbits');
+    var stamp = {updatedAt: firebase.firestore.FieldValue.serverTimestamp()};
+    var i = 0;
+    while(i < ids.length){
+      var batch = db.batch();
+      var end = Math.min(i + 400, ids.length);
+      for(var j=i; j<end; j++){
+        var ref = base.doc(ids[j]);
+        batch.update(ref, Object.assign({}, updates, stamp));
+      }
+      await batch.commit();
+      i = end;
+    }
+  }
+  async function bulkSetHerdStatus(status){
+    if(!can('worker')){ showToast('Only workers or above can update rabbits.', true); return; }
+    var valid = {active:true, sold:true, retired:true, deceased:true};
+    if(!valid[status]) return;
+    var ids = selectedHerdIds();
+    if(!ids.length){ showToast('Select at least one rabbit first.', true); return; }
+    try{
+      await bulkUpdateRabbits(ids, {status: status});
+      clearHerdSelection();
+      showToast('Updated status for '+ids.length+' rabbit'+(ids.length===1?'':'s')+'.');
+    }catch(e){ showToast(friendlyError(e), true); }
+  }
+  async function bulkAssignHerdCage(){
+    if(!can('worker')){ showToast('Only workers or above can update rabbits.', true); return; }
+    var ids = selectedHerdIds();
+    if(!ids.length){ showToast('Select at least one rabbit first.', true); return; }
+    var picker = document.getElementById('w-herd-bulk-cage');
+    var rawValue = picker ? String(picker.value || '') : '';
+    if(!rawValue){ showToast('Choose a hutch target first.', true); return; }
+    var cageId = rawValue === '__unassigned' ? null : rawValue;
+    var selectedCage = cageId ? cageById(cageId) : null;
+    var allowedIds = [];
+    var blocked = 0;
+    ids.forEach(function(id){
+      var rabbit = rabbitById(id);
+      if(!rabbit) return;
+      if(selectedCage && !rabbitMatchesHutchRule(rabbit, selectedCage)){
+        blocked += 1;
+        return;
+      }
+      allowedIds.push(id);
+    });
+    if(!allowedIds.length){ showToast('No selected rabbits are compatible with that hutch.', true); return; }
+    try{
+      await bulkUpdateRabbits(allowedIds, {cageId: cageId});
+      clearHerdSelection();
+      showToast('Updated hutch for '+allowedIds.length+' rabbit'+(allowedIds.length===1?'':'s')+(blocked?(' ('+blocked+' skipped).') : '.'));
+    }catch(e){ showToast(friendlyError(e), true); }
+  }
+  function herdPagination(totalRows){
+    var totalPages = Math.max(1, Math.ceil(totalRows / HERD_PAGE_SIZE));
+    if(herdPage > totalPages) herdPage = totalPages;
+    if(totalRows <= HERD_PAGE_SIZE) return '';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">'+
+      '<div class="w-sub">Page '+herdPage+' of '+totalPages+'</div>'+
+      '<div style="display:flex;gap:8px;">'+
+        '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('set-herd-page', {page:Math.max(1, herdPage-1)})+(herdPage<=1?' disabled':'')+'>Previous</button>'+
+        '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('set-herd-page', {page:Math.min(totalPages, herdPage+1)})+(herdPage>=totalPages?' disabled':'')+'>Next</button>'+
+      '</div>'+
+    '</div>';
+  }
   function viewHerd(){
     var rows = state.rabbits.filter(function(r){
       if(herdFilter.status!=='all' && r.status!==herdFilter.status) return false;
       if(herdFilter.sex!=='all' && r.sex!==herdFilter.sex) return false;
+      if(herdFilter.isKit!=='all'){
+        var isKit = !!r.isKit;
+        if(herdFilter.isKit==='yes' && !isKit) return false;
+        if(herdFilter.isKit==='no' && isKit) return false;
+      }
+      if(herdFilter.cageId==='unassigned' && !!r.cageId) return false;
+      if(herdFilter.cageId!=='all' && herdFilter.cageId!=='unassigned' && String(r.cageId||'')!==String(herdFilter.cageId)) return false;
       if(herdFilter.q && ((r.tag||'')+' '+(r.name||'')+' '+(r.breed||'')).toLowerCase().indexOf(herdFilter.q.toLowerCase())===-1) return false;
       return true;
+    });
+    rows.sort(function(a,b){
+      var mode = herdFilter.sort || 'tag_asc';
+      if(mode==='tag_desc') return String(b.tag||'').localeCompare(String(a.tag||''));
+      if(mode==='age_oldest'){
+        var ao = ageDays(a.dob); if(ao < 0) ao = -999999;
+        var bo = ageDays(b.dob); if(bo < 0) bo = -999999;
+        return bo - ao;
+      }
+      if(mode==='age_youngest'){
+        var ay = ageDays(a.dob); if(ay < 0) ay = 999999;
+        var by = ageDays(b.dob); if(by < 0) by = 999999;
+        return ay - by;
+      }
+      if(mode==='status'){
+        var sa = String(a.status||'');
+        var sb = String(b.status||'');
+        if(sa!==sb) return sa.localeCompare(sb);
+      }
+      return String(a.tag||'').localeCompare(String(b.tag||''));
+    });
+    var totalRows = rows.length;
+    var totalPages = Math.max(1, Math.ceil(totalRows / HERD_PAGE_SIZE));
+    if(herdPage > totalPages) herdPage = totalPages;
+    var start = (herdPage-1) * HERD_PAGE_SIZE;
+    var pageRows = rows.slice(start, start + HERD_PAGE_SIZE);
+    herdVisibleRows = pageRows;
+    var selectedCount = selectedHerdIds().length;
+    var cageOptions = ['<option value="all" '+(herdFilter.cageId==='all'?'selected':'')+'>All hutches</option>','<option value="unassigned" '+(herdFilter.cageId==='unassigned'?'selected':'')+'>Unassigned</option>'];
+    state.cages.slice().sort(function(a,b){ return String(a.label||'').localeCompare(String(b.label||'')); }).forEach(function(c){
+      cageOptions.push('<option value="'+esc(c.id)+'" '+(String(herdFilter.cageId)===String(c.id)?'selected':'')+'>'+esc(c.label)+'</option>');
+    });
+    var bulkCageOptions = ['<option value="">Assign hutch…</option>','<option value="__unassigned">Unassigned</option>'];
+    state.cages.slice().sort(function(a,b){ return String(a.label||'').localeCompare(String(b.label||'')); }).forEach(function(c){
+      bulkCageOptions.push('<option value="'+esc(c.id)+'">'+esc(c.label)+'</option>');
     });
     return '<div class="w-headrow"><div><h2>Herd</h2><div class="w-sub">'+state.rabbits.length+' rabbits total</div></div>'+
       (can('worker')?'<button class="w-btn w-btn-primary"'+clickAttrs('open-rabbit-modal')+'>+ Add rabbit</button>':'')+'</div>'+
       '<div class="w-panel">'+
         '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">'+
           '<input placeholder="Search tag, name, breed…" value="'+esc(herdFilter.q)+'"'+inputAttrs('set-herd-filter', {key:'q'})+' style="flex:1;min-width:160px;padding:7px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);"/>'+
-          selectHtml('status', ['all','active','sold','retired','deceased'], herdFilter.status)+
-          selectHtml('sex', ['all','doe','buck'], herdFilter.sex)+
+          selectHtml('status', ['all','active','sold','retired','deceased'], herdFilter.status, {all:'All status',active:'Active',sold:'Sold',retired:'Retired',deceased:'Deceased'})+
+          selectHtml('sex', ['all','doe','buck','unknown'], herdFilter.sex, {all:'All sex',doe:'Doe',buck:'Buck',unknown:'Unknown'})+
+          selectHtml('isKit', ['all','yes','no'], herdFilter.isKit, {all:'All maturity',yes:'Kits only',no:'Adults only'})+
+          '<select'+changeAttrs('set-herd-filter', {key:'cageId'})+' style="padding:7px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);">'+cageOptions.join('')+'</select>'+
+          selectHtml('sort', ['tag_asc','tag_desc','age_oldest','age_youngest','status'], herdFilter.sort, {tag_asc:'Tag A-Z',tag_desc:'Tag Z-A',age_oldest:'Oldest first',age_youngest:'Youngest first',status:'Status'})+
         '</div>'+
-        (rows.length? herdTable(rows) : '<div class="w-empty"><p>No rabbits match these filters.</p></div>')+
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">'+
+          '<div class="w-sub">'+totalRows+' rabbit'+(totalRows===1?'':'s')+' in view · '+selectedCount+' selected</div>'+
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+            '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('herd-select-visible')+(pageRows.length?'':' disabled')+'>Select page</button>'+
+            '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('herd-clear-selection')+(selectedCount?'':' disabled')+'>Clear selection</button>'+
+          '</div>'+
+        '</div>'+
+        (can('worker') ? ('<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">'+
+          '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('herd-bulk-status', {status:'active'})+(selectedCount?'':' disabled')+'>Mark active</button>'+
+          '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('herd-bulk-status', {status:'retired'})+(selectedCount?'':' disabled')+'>Mark retired</button>'+
+          '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('herd-bulk-status', {status:'sold'})+(selectedCount?'':' disabled')+'>Mark sold</button>'+
+          '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('herd-bulk-status', {status:'deceased'})+(selectedCount?'':' disabled')+'>Mark deceased</button>'+
+          '<select id="w-herd-bulk-cage" style="padding:7px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);">'+bulkCageOptions.join('')+'</select>'+
+          '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('herd-bulk-cage')+(selectedCount?'':' disabled')+'>Apply hutch</button>'+
+        '</div>') : '')+
+        '<div class="herd-legend" aria-label="Herd status legend">'+
+          '<span class="herd-legend-title">Row color key</span>'+
+          '<span class="herd-legend-chip herd-legend-active">Active</span>'+
+          '<span class="herd-legend-chip herd-legend-sold">Sold</span>'+
+          '<span class="herd-legend-chip herd-legend-retired">Retired</span>'+
+          '<span class="herd-legend-chip herd-legend-deceased">Deceased</span>'+
+          '<span class="herd-legend-chip herd-legend-selected">Selected</span>'+
+        '</div>'+
+        herdPagination(totalRows)+
+        (pageRows.length? herdTable(pageRows) : '<div class="w-empty"><p>No rabbits match these filters.</p></div>')+
       '</div>';
   }
-  function selectHtml(key, opts, val){
+  function selectHtml(key, opts, val, labels){
     return '<select'+changeAttrs('set-herd-filter', {key:key})+' style="padding:7px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);">'+
-      opts.map(function(o){return '<option value="'+o+'" '+(o===val?'selected':'')+'>'+(o==='all'?'All':o)+'</option>';}).join('')+
+      opts.map(function(o){
+        var label = labels && labels[o] ? labels[o] : (o==='all'?'All':o);
+        return '<option value="'+o+'" '+(o===val?'selected':'')+'>'+esc(label)+'</option>';
+      }).join('')+
     '</select>';
   }
   function eartag(r){ return '<span class="eartag tag-'+(r.status||'active')+'">'+esc(r.tag)+'</span>'; }
@@ -925,11 +1155,11 @@
     var base = String(seed || 'KIT').replace(/[^A-Za-z0-9-]/g,'').toUpperCase() || 'KIT';
     var n = 1;
     var candidate = base+'-'+String(n).padStart(2,'0');
-    while(existing[candidate]){
+    while(existing[normalizeTag(candidate)]){
       n += 1;
       candidate = base+'-'+String(n).padStart(2,'0');
     }
-    existing[candidate] = true;
+    existing[normalizeTag(candidate)] = true;
     return candidate;
   }
   async function createKitRecordsForLitter(litterRow, createCount){
@@ -937,7 +1167,10 @@
     var doe = rabbitById(litterRow.doeId);
     var buck = rabbitById(litterRow.buckId);
     var existingTags = {};
-    state.rabbits.forEach(function(r){ if(r.tag) existingTags[String(r.tag)] = true; });
+    state.rabbits.forEach(function(r){
+      var key = normalizeTag(r.tag || r.tagNormalized || '');
+      if(key) existingTags[key] = true;
+    });
     var seed = 'K'+String(litterRow.kindleDate||todayStr()).replace(/-/g,'');
     var created = [];
     for(var i=0;i<createCount;i++){
@@ -960,6 +1193,7 @@
         litterId: litterRow.id,
         notes: 'Auto-generated from litter '+litterRow.id+' on '+todayStr()+'.'
       };
+      body.tagNormalized = normalizeTag(body.tag);
       created.push(await createItem('rabbits', body));
     }
     return created;
@@ -973,12 +1207,45 @@
     return String(value);
   }
   function moneyInput(n){ return (n===undefined || n===null || n==='') ? '' : String(n); }
+  function suggestNextRabbitTag(){
+    var max = 0;
+    state.rabbits.forEach(function(r){
+      var m = String(r.tag||'').match(/^R-(\d+)$/i);
+      if(!m) return;
+      var n = parseInt(m[1],10);
+      if(!isNaN(n) && n > max) max = n;
+    });
+    return 'R-'+String(max+1).padStart(3,'0');
+  }
+  async function ensureUniqueRabbitTag(tagNormalized, rabbitId){
+    if(!tagNormalized) throw new Error('Ear tag is required.');
+    var dupLocal = state.rabbits.some(function(row){
+      if(rabbitId && row.id===rabbitId) return false;
+      return normalizeTag(row.tagNormalized || row.tag) === tagNormalized;
+    });
+    if(dupLocal) throw new Error('Ear tag already exists. Use a unique ear tag.');
+
+    var col = db.collection('farms').doc(currentFarm.id).collection('rabbits');
+    var byNormalized = await col.where('tagNormalized','==',tagNormalized).limit(1).get();
+    if(!byNormalized.empty && byNormalized.docs[0].id !== rabbitId) throw new Error('Ear tag already exists. Use a unique ear tag.');
+
+    // Backward compatibility for legacy rows missing tagNormalized.
+    var byRaw = await col.where('tag','==',tagNormalized).limit(1).get();
+    if(!byRaw.empty && byRaw.docs[0].id !== rabbitId) throw new Error('Ear tag already exists. Use a unique ear tag.');
+  }
+  function herdRowStatusClass(status){
+    if(status==='sold') return 'herd-row-status-sold';
+    if(status==='retired') return 'herd-row-status-retired';
+    if(status==='deceased') return 'herd-row-status-deceased';
+    return 'herd-row-status-active';
+  }
 
   function herdTable(rows){
-    return '<table class="w-table"><thead><tr><th>Tag</th><th>Name</th><th>Breed</th><th>Sex</th><th>DOB</th><th>Status</th><th>Hutch</th><th></th></tr></thead><tbody>'+
+    return '<table class="w-table"><thead><tr><th style="width:44px;"></th><th>Tag</th><th>Name</th><th>Breed</th><th>Sex</th><th>DOB</th><th>Status</th><th>Hutch</th><th></th></tr></thead><tbody>'+
       rows.map(function(r){
         var cage = cageById(r.cageId);
-        return '<tr><td>'+eartag(r)+'</td><td>'+rabbitNameCell(r)+(r.isKit?' <span class="w-pill pill-clay" style="margin-left:6px;">Kit</span>':'')+'</td>'+
+        var rowClass = 'herd-row '+herdRowStatusClass(r.status)+(herdSelection[r.id]?' herd-row-selected':'');
+        return '<tr class="'+rowClass+'"><td><input type="checkbox" '+(herdSelection[r.id]?'checked':'')+' aria-label="Select rabbit '+esc(r.tag||r.name||'')+'"'+clickAttrs('toggle-herd-select', {id:r.id})+'/></td><td>'+eartag(r)+'</td><td>'+rabbitNameCell(r)+(r.isKit?' <span class="w-pill pill-clay" style="margin-left:6px;">Kit</span>':'')+'</td>'+
           '<td>'+esc(r.breed)+'</td><td style="text-transform:capitalize;">'+esc(r.sex)+'</td>'+
           '<td class="mono" style="font-size:.78rem;">'+fmtDate(r.dob)+'</td><td>'+statusPill(r.status)+'</td>'+
           '<td>'+esc(cage?cage.label:'—')+'</td>'+
@@ -1039,7 +1306,7 @@
 
   function openRabbitModal(id){
     var r = id ? rabbitById(id) : null;
-    var nextTag = 'R-'+String(state.rabbits.length+1).padStart(3,'0');
+    var nextTag = suggestNextRabbitTag();
     var picturesText = pictureUrlsToText(r && r.pictures);
     var draftRabbit = { sex:(r&&r.sex)||'doe', isKit:!!(r&&r.isKit) };
     var html = '<div class="w-modal"><h3>'+(r?'Edit rabbit':'Add rabbit')+'</h3><form id="w-rabbit-form">'+
@@ -1074,7 +1341,8 @@
     form.isKit.onchange = refreshRabbitHutchOptions;
     form.onsubmit = async function(e){
       e.preventDefault(); var f = new FormData(e.target);
-      var body = {tag:f.get('tag'), name:f.get('name'), breed:f.get('breed'), sex:f.get('sex'), dob:f.get('dob')||null,
+      var tag = normalizeTag(f.get('tag'));
+      var body = {tag:tag, tagNormalized:tag, name:f.get('name'), breed:f.get('breed'), sex:f.get('sex'), dob:f.get('dob')||null,
         status:f.get('status'), sireId:f.get('sireId')||null, damId:f.get('damId')||null, cageId:f.get('cageId')||null,
         weight:f.get('weight')?parseFloat(f.get('weight')):null,
         purchasePrice:f.get('purchasePrice')?parseFloat(f.get('purchasePrice')):null,
@@ -1087,7 +1355,12 @@
         showToast('Selected hutch is for '+hutchTypeLabel(selectedCage.allowedSex)+' rabbits. Choose a compatible hutch.', true);
         return;
       }
-      try{ if(r) await updateItem('rabbits', r.id, body); else await createItem('rabbits', body); closeModal(); renderMain(); showToast('Rabbit saved'); }
+      try{
+        await ensureUniqueRabbitTag(tag, r && r.id);
+        if(r) await updateItem('rabbits', r.id, body);
+        else await createItem('rabbits', body);
+        closeModal(); renderMain(); showToast('Rabbit saved');
+      }
       catch(err){ showToast(friendlyError(err), true); }
     };
   }
@@ -2297,7 +2570,12 @@
   // ============ MODAL HELPERS ============
   function showModal(html){ document.getElementById('w-modal-root').innerHTML = '<div class="w-overlay"'+clickAttrs('close-modal-overlay')+'>'+html+'</div>'; }
   function closeModal(){ var el = document.getElementById('w-modal-root'); if(el) el.innerHTML=''; }
-  function setHerdFilter(k,v){ herdFilter[k]=v; renderMain(); }
+  function setHerdFilter(k,v){
+    herdFilter[k]=v;
+    herdPage = 1;
+    herdSelection = {};
+    renderMain();
+  }
 
   window.WApp = {
     setAuthMode:setAuthMode, pickFarm:pickFarm, goNewFarm:goNewFarm, backToPick:backToPick, logout:logout, switchFarm:switchFarm,

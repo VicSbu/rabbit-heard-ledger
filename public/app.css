@@ -76,6 +76,25 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
 .w-table tbody tr td:last-child{border-top-right-radius:16px;border-bottom-right-radius:16px;}
 .w-table tr:hover td{background:var(--surface);}
 .w-table tr:last-child td{border-bottom:none;}
+.w-table tr.herd-row td{border:1px solid transparent;border-left-width:6px;transition:background .2s ease,border-color .2s ease,box-shadow .2s ease;}
+.w-table tr.herd-row.herd-row-status-active td{background:linear-gradient(180deg,#f3fbf7,#e6f6ee);border-color:rgba(31,123,92,.22);}
+.w-table tr.herd-row.herd-row-status-sold td{background:linear-gradient(180deg,#fff8f3,#ffe9db);border-color:rgba(212,116,93,.24);}
+.w-table tr.herd-row.herd-row-status-retired td{background:linear-gradient(180deg,#f4f7fb,#e8eef5);border-color:rgba(95,115,141,.24);}
+.w-table tr.herd-row.herd-row-status-deceased td{background:linear-gradient(180deg,#f1f3f6,#e1e6ed);border-color:rgba(109,124,144,.28);}
+.w-table tr.herd-row.herd-row-status-active td:first-child{border-left-color:#1f9b6f;}
+.w-table tr.herd-row.herd-row-status-sold td:first-child{border-left-color:#d7745d;}
+.w-table tr.herd-row.herd-row-status-retired td:first-child{border-left-color:#6b8198;}
+.w-table tr.herd-row.herd-row-status-deceased td:first-child{border-left-color:#56657a;}
+.w-table tr.herd-row.herd-row-selected td{box-shadow:inset 0 0 0 2px rgba(52,105,168,.22);}
+.w-table tr.herd-row:hover td{filter:brightness(.99);}
+.herd-legend{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 12px 0;}
+.herd-legend-title{font-size:.72rem;font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.45px;margin-right:2px;}
+.herd-legend-chip{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;font-size:.7rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;border:1px solid transparent;}
+.herd-legend-active{background:linear-gradient(180deg,#f3fbf7,#e6f6ee);border-color:rgba(31,123,92,.25);color:#1f7b5c;}
+.herd-legend-sold{background:linear-gradient(180deg,#fff8f3,#ffe9db);border-color:rgba(212,116,93,.28);color:#9f4c38;}
+.herd-legend-retired{background:linear-gradient(180deg,#f4f7fb,#e8eef5);border-color:rgba(95,115,141,.26);color:#4e627a;}
+.herd-legend-deceased{background:linear-gradient(180deg,#f1f3f6,#e1e6ed);border-color:rgba(109,124,144,.3);color:#45586f;}
+.herd-legend-selected{background:linear-gradient(180deg,#eef5ff,#ddeafd);border-color:rgba(52,105,168,.32);color:#2b5a92;}
 .w-empty{padding:34px;text-align:center;color:var(--ink-muted);}
 .w-empty p{margin:0;font-size:.95rem;}
 .w-member-list{display:grid;gap:12px;}
