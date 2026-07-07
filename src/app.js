@@ -27,7 +27,7 @@
     experimentalAutoDetectLongPolling: true,
     useFetchStreams: false,
   });
-  var fx = firebase.functions();
+  var fx = firebase.app().functions('us-central1');
   var messaging = null;
   var FCM_VAPID_KEY = ''; // Optional: set your Firebase Web Push VAPID key if required for getToken
 
@@ -53,6 +53,7 @@
   var state = {rabbits:[], cages:[], litters:[], health:[], feedStock:[], ledger:[], tasks:[], taskLogs:[]};
   var liveUnsubs = [];
   var liveSyncKeys = {rabbits:true, cages:true, litters:true};
+  var liveRenderQueued = false;
   var current = 'dashboard';
   var GEST_DAYS = 31;
   var PALPATION_DAYS = 14;
@@ -95,6 +96,14 @@
     return Math.round((now-then)/86400000);
   }
   function hasLiveSync(key){ return !!liveSyncKeys[key]; }
+  function scheduleLiveRender(){
+    if(liveRenderQueued) return;
+    liveRenderQueued = true;
+    requestAnimationFrame(function(){
+      liveRenderQueued = false;
+      if(appScreen==='app') renderMain();
+    });
+  }
   function dataAttrs(attrs){
     return Object.keys(attrs).filter(function(key){ return attrs[key] !== undefined && attrs[key] !== null; }).map(function(key){
       return ' data-' + key + '="' + esc(attrs[key]) + '"';
@@ -158,6 +167,7 @@
     if(action === 'delete-feed-item') return deleteFeedItem(target.dataset.id);
     if(action === 'open-ledger-modal') return openLedgerModal(target.dataset.rabbitId || null, target.dataset.prefillType || null, target.dataset.prefillCategory || null);
     if(action === 'export-ledger-csv') return exportLedgerCsv();
+    if(action === 'export-ledger-profit-csv') return exportLedgerProfitCsv();
     if(action === 'apply-breeding-custom-range') return applyBreedingCustomRange();
     if(action === 'reset-breeding-custom-range') return resetBreedingCustomRange();
     if(action === 'export-breeding-records-csv') return exportBreedingRecordsCsv();
@@ -176,6 +186,7 @@
     if(action === 'herd-bulk-status') return bulkSetHerdStatus(target.dataset.status);
     if(action === 'herd-bulk-cage') return bulkAssignHerdCage();
     if(action === 'set-herd-page') return setHerdPage(target.dataset.page);
+    if(action === 'set-herd-view') return setHerdViewMode(target.dataset.mode);
   }
 
   function handleUiChange(action, target){
@@ -242,9 +253,13 @@
 
   async function afterLogin(){
     try{
-      await registerFcmToken();
-      await checkMustChangePassword();
-      var snap = await db.collection('memberships').where('uid','==',currentUser.uid).get();
+      // Do not block first render on browser notification permission / token registration.
+      registerFcmToken().catch(function(e){ console.warn('Deferred FCM registration failed:', e); });
+      var results = await Promise.all([
+        checkMustChangePassword(),
+        db.collection('memberships').where('uid','==',currentUser.uid).get()
+      ]);
+      var snap = results[1];
       farms = snap.docs.map(function(d){ var m=d.data(); return {id:m.farmId, name:m.farmName, currency:m.currency, role:m.role}; });
       farms.sort(function(a,b){ return a.name.localeCompare(b.name); });
       if(mustChangePassword){ renderRoot(); return; }
@@ -260,8 +275,9 @@
     currentRole = farm.role;
     appScreen='app';
     current='dashboard';
-    await hydrateCurrentFarmDetails();
     renderRoot();
+    // Hydrate farm metadata in the background so main app shell appears immediately.
+    hydrateCurrentFarmDetails().then(function(){ if(appScreen==='app') renderRoot(); });
     await loadFarmData();
   }
 
@@ -368,7 +384,7 @@
       var query = base.collection(col).orderBy('createdAt','desc');
       var unsub = query.onSnapshot(function(snap){
         state[key] = snapToArr(snap);
-        if(appScreen==='app') renderMain();
+        if(appScreen==='app') scheduleLiveRender();
       }, function(err){
         console.warn('Live sync error for '+key+':', err);
       });
@@ -428,39 +444,55 @@
     if(!hasLiveSync(key)) state[key] = state[key].filter(function(x){return x.id!==id;});
   }
   async function saveTaskApi(taskId, task){
-    var saveTaskFn = fx.httpsCallable('saveTask');
-    await saveTaskFn({farmId: currentFarm.id, taskId: taskId || null, task: task});
+    await callFnWithRetry('saveTask', {farmId: currentFarm.id, taskId: taskId || null, task: task});
     await refetch('tasks');
   }
   async function deleteTaskApi(taskId){
-    var deleteTaskFn = fx.httpsCallable('deleteTask');
-    await deleteTaskFn({farmId: currentFarm.id, taskId: taskId});
+    await callFnWithRetry('deleteTask', {farmId: currentFarm.id, taskId: taskId});
     await refetch('tasks');
   }
   async function completeTaskApi(taskId, completion){
-    var completeTaskFn = fx.httpsCallable('completeTask');
-    await completeTaskFn({farmId: currentFarm.id, taskId: taskId, completion: completion || {}});
+    await callFnWithRetry('completeTask', {farmId: currentFarm.id, taskId: taskId, completion: completion || {}});
     await Promise.all([refetch('tasks'), refetch('taskLogs')]);
   }
   async function saveFeedItemApi(itemId, item){
-    var saveFeedItemFn = fx.httpsCallable('saveFeedItem');
-    await saveFeedItemFn({farmId: currentFarm.id, itemId: itemId || null, item: item});
+    await callFnWithRetry('saveFeedItem', {farmId: currentFarm.id, itemId: itemId || null, item: item});
     await refetch('feedStock');
   }
   async function deleteFeedItemApi(itemId){
-    var deleteFeedItemFn = fx.httpsCallable('deleteFeedItem');
-    await deleteFeedItemFn({farmId: currentFarm.id, itemId: itemId});
+    await callFnWithRetry('deleteFeedItem', {farmId: currentFarm.id, itemId: itemId});
     await refetch('feedStock');
   }
   async function adjustFeedStockApi(itemId, body){
-    var adjustFeedStockFn = fx.httpsCallable('adjustFeedStock');
-    await adjustFeedStockFn(Object.assign({farmId: currentFarm.id, itemId: itemId}, body));
+    await callFnWithRetry('adjustFeedStock', Object.assign({farmId: currentFarm.id, itemId: itemId}, body));
     await Promise.all([refetch('feedStock'), refetch('ledger')]);
   }
   async function createLedgerEntryApi(entry){
-    var createLedgerEntryFn = fx.httpsCallable('createLedgerEntry');
-    await createLedgerEntryFn({farmId: currentFarm.id, entry: entry});
+    await callFnWithRetry('createLedgerEntry', {farmId: currentFarm.id, entry: entry}, 2);
     await refetch('ledger');
+  }
+  function isTransientFnError(err){
+    if(!err) return false;
+    var code = String(err.code || '').toLowerCase();
+    if(code === 'functions/unavailable' || code === 'unavailable' || code === 'functions/internal' || code === 'internal') return true;
+    var msg = String(err.message || '').toLowerCase();
+    return msg.indexOf('cors') > -1 || msg.indexOf('network') > -1 || msg.indexOf('failed to fetch') > -1 || msg.indexOf('request did not succeed') > -1;
+  }
+  function sleep(ms){ return new Promise(function(resolve){ setTimeout(resolve, ms); }); }
+  async function callFnWithRetry(name, payload, retries){
+    var attempts = Math.max(0, Number(retries || 1));
+    var fn = fx.httpsCallable(name);
+    var lastError = null;
+    for(var i=0;i<=attempts;i++){
+      try{
+        return await fn(payload);
+      }catch(err){
+        lastError = err;
+        if(i>=attempts || !isTransientFnError(err)) throw err;
+        await sleep(350 * (i+1));
+      }
+    }
+    throw lastError || new Error('Cloud function call failed');
   }
 
   // ============ ROOT RENDER ============
@@ -910,9 +942,9 @@
   }
   function recentActivity(){
     var items = [];
-    state.rabbits.forEach(function(r){ items.push({d:r.dob||todayStr(), text:'Rabbit '+r.tag+' ('+r.name+') added to herd'}); });
-    state.litters.forEach(function(l){ if(l.kindleDate){ var doe=rabbitById(l.doeId); items.push({d:l.kindleDate, text:(doe?doe.tag:'?')+' kindled '+(l.kitsBorn||0)+' kits'}); } });
-    state.ledger.forEach(function(e){ items.push({d:e.date, text:e.type+': '+e.category+' — '+money(e.amount)}); });
+    state.rabbits.slice(0,40).forEach(function(r){ items.push({d:r.dob||todayStr(), text:'Rabbit '+r.tag+' ('+r.name+') added to herd'}); });
+    state.litters.slice(0,40).forEach(function(l){ if(l.kindleDate){ var doe=rabbitById(l.doeId); items.push({d:l.kindleDate, text:(doe?doe.tag:'?')+' kindled '+(l.kitsBorn||0)+' kits'}); } });
+    state.ledger.slice(0,80).forEach(function(e){ items.push({d:e.date, text:e.type+': '+e.category+' — '+money(e.amount)}); });
     items.sort(function(a,b){ return new Date(b.d)-new Date(a.d); });
     items = items.slice(0,8);
     if(!items.length) return '<div class="w-empty"><p>Nothing recorded yet.</p></div>';
@@ -921,6 +953,7 @@
 
   // ============ HERD ============
   var herdFilter = {status:'all', sex:'all', isKit:'all', cageId:'all', sort:'tag_asc', q:''};
+  var herdViewMode = 'table';
   var herdSelection = {};
   var herdPage = 1;
   var HERD_PAGE_SIZE = 25;
@@ -949,6 +982,11 @@
     var n = parseInt(page, 10);
     if(!n || isNaN(n) || n < 1) n = 1;
     herdPage = n;
+    if(current==='herd') renderMain();
+  }
+  function setHerdViewMode(mode){
+    if(mode!=='table' && mode!=='cards') return;
+    herdViewMode = mode;
     if(current==='herd') renderMain();
   }
   function setHerdFilterInput(k,v){
@@ -1070,12 +1108,12 @@
     herdVisibleRows = pageRows;
     var selectedCount = selectedHerdIds().length;
     var cageOptions = ['<option value="all" '+(herdFilter.cageId==='all'?'selected':'')+'>All hutches</option>','<option value="unassigned" '+(herdFilter.cageId==='unassigned'?'selected':'')+'>Unassigned</option>'];
-    state.cages.slice().sort(function(a,b){ return String(a.label||'').localeCompare(String(b.label||'')); }).forEach(function(c){
-      cageOptions.push('<option value="'+esc(c.id)+'" '+(String(herdFilter.cageId)===String(c.id)?'selected':'')+'>'+esc(c.label)+'</option>');
+    state.cages.slice().sort(function(a,b){ return String((a.location||'')+' '+(a.label||'')).localeCompare(String((b.location||'')+' '+(b.label||''))); }).forEach(function(c){
+      cageOptions.push('<option value="'+esc(c.id)+'" '+(String(herdFilter.cageId)===String(c.id)?'selected':'')+'>'+esc(cageLabelWithLocation(c))+'</option>');
     });
     var bulkCageOptions = ['<option value="">Assign hutch…</option>','<option value="__unassigned">Unassigned</option>'];
-    state.cages.slice().sort(function(a,b){ return String(a.label||'').localeCompare(String(b.label||'')); }).forEach(function(c){
-      bulkCageOptions.push('<option value="'+esc(c.id)+'">'+esc(c.label)+'</option>');
+    state.cages.slice().sort(function(a,b){ return String((a.location||'')+' '+(a.label||'')).localeCompare(String((b.location||'')+' '+(b.label||''))); }).forEach(function(c){
+      bulkCageOptions.push('<option value="'+esc(c.id)+'">'+esc(cageLabelWithLocation(c))+'</option>');
     });
     return '<div class="w-headrow"><div><h2>Herd</h2><div class="w-sub">'+state.rabbits.length+' rabbits total</div></div>'+
       (can('worker')?'<button class="w-btn w-btn-primary"'+clickAttrs('open-rabbit-modal')+'>+ Add rabbit</button>':'')+'</div>'+
@@ -1087,6 +1125,8 @@
           selectHtml('isKit', ['all','yes','no'], herdFilter.isKit, {all:'All maturity',yes:'Kits only',no:'Adults only'})+
           '<select'+changeAttrs('set-herd-filter', {key:'cageId'})+' style="padding:7px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);">'+cageOptions.join('')+'</select>'+
           selectHtml('sort', ['tag_asc','tag_desc','age_oldest','age_youngest','status'], herdFilter.sort, {tag_asc:'Tag A-Z',tag_desc:'Tag Z-A',age_oldest:'Oldest first',age_youngest:'Youngest first',status:'Status'})+
+          '<button class="w-btn '+(herdViewMode==='table'?'w-btn-primary':'w-btn-ghost')+' w-btn-sm"'+clickAttrs('set-herd-view', {mode:'table'})+'>Table</button>'+
+          '<button class="w-btn '+(herdViewMode==='cards'?'w-btn-primary':'w-btn-ghost')+' w-btn-sm"'+clickAttrs('set-herd-view', {mode:'cards'})+'>Cards</button>'+
         '</div>'+
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">'+
           '<div class="w-sub">'+totalRows+' rabbit'+(totalRows===1?'':'s')+' in view · '+selectedCount+' selected</div>'+
@@ -1112,7 +1152,7 @@
           '<span class="herd-legend-chip herd-legend-selected">Selected</span>'+
         '</div>'+
         herdPagination(totalRows)+
-        (pageRows.length? herdTable(pageRows) : '<div class="w-empty"><p>No rabbits match these filters.</p></div>')+
+        (pageRows.length? (herdViewMode==='cards' ? herdCardGrid(pageRows) : herdTable(pageRows)) : '<div class="w-empty"><p>No rabbits match these filters.</p></div>')+
       '</div>';
   }
   function selectHtml(key, opts, val, labels){
@@ -1122,6 +1162,16 @@
         return '<option value="'+o+'" '+(o===val?'selected':'')+'>'+esc(label)+'</option>';
       }).join('')+
     '</select>';
+  }
+  function rabbitPrimaryPictureUrl(r){
+    var pictures = Array.isArray(r && r.pictures) ? r.pictures : pictureUrlsFromText(r && r.pictures);
+    return pictures.length ? String(pictures[0]) : '';
+  }
+  function cageLabelWithLocation(cage){
+    if(!cage) return '—';
+    var label = String(cage.label || '');
+    var location = String(cage.location || '').trim();
+    return location ? (label+' ('+location+')') : label;
   }
   function eartag(r){ return '<span class="eartag tag-'+(r.status||'active')+'">'+esc(r.tag)+'</span>'; }
   function statusPill(status){ var map={active:'pill-moss',sold:'pill-clay',deceased:'pill-grey',retired:'pill-warn'}; return '<span class="w-pill '+(map[status]||'pill-grey')+'">'+esc(status)+'</span>'; }
@@ -1248,9 +1298,30 @@
         return '<tr class="'+rowClass+'"><td><input type="checkbox" '+(herdSelection[r.id]?'checked':'')+' aria-label="Select rabbit '+esc(r.tag||r.name||'')+'"'+clickAttrs('toggle-herd-select', {id:r.id})+'/></td><td>'+eartag(r)+'</td><td>'+rabbitNameCell(r)+(r.isKit?' <span class="w-pill pill-clay" style="margin-left:6px;">Kit</span>':'')+'</td>'+
           '<td>'+esc(r.breed)+'</td><td style="text-transform:capitalize;">'+esc(r.sex)+'</td>'+
           '<td class="mono" style="font-size:.78rem;">'+fmtDate(r.dob)+'</td><td>'+statusPill(r.status)+'</td>'+
-          '<td>'+esc(cage?cage.label:'—')+'</td>'+
+          '<td>'+esc(cageLabelWithLocation(cage))+'</td>'+
           '<td>'+(can('worker')?'<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('open-rabbit-modal', {id:r.id})+'>Edit</button>':'')+'</td></tr>';
       }).join('')+'</tbody></table>';
+  }
+  function herdCardGrid(rows){
+    return '<div class="w-rabbit-card-grid">'+rows.map(function(r){
+      var picture = rabbitPrimaryPictureUrl(r);
+      var cage = cageById(r.cageId);
+      return '<article class="w-rabbit-card h-hutch-card '+herdRowStatusClass(r.status)+(herdSelection[r.id]?' w-rabbit-card-selected':'')+'">'+
+        '<div class="w-rabbit-card-media">'+
+          (picture ? ('<img src="'+esc(picture)+'" alt="'+esc(r.name||r.tag||'Rabbit')+'" loading="lazy"/>') : '<div class="w-rabbit-card-placeholder">No photo</div>')+
+        '</div>'+
+        '<div class="w-rabbit-card-body">'+
+          '<div class="w-rabbit-card-top"><label><input type="checkbox" '+(herdSelection[r.id]?'checked':'')+' aria-label="Select rabbit '+esc(r.tag||r.name||'')+'"'+clickAttrs('toggle-herd-select', {id:r.id})+'/> Select</label>'+statusPill(r.status)+'</div>'+
+          '<div class="w-rabbit-card-tag">'+eartag(r)+'</div>'+
+          '<div class="w-rabbit-card-name">'+rabbitNameCell(r)+(r.isKit?' <span class="w-pill pill-clay" style="margin-left:6px;">Kit</span>':'')+'</div>'+
+          '<div class="w-rabbit-card-meta"><b>Breed:</b> '+esc(r.breed||'—')+'</div>'+
+          '<div class="w-rabbit-card-meta"><b>Sex:</b> '+esc(r.sex||'—')+'</div>'+
+          '<div class="w-rabbit-card-meta"><b>DOB:</b> '+fmtDate(r.dob)+'</div>'+
+          '<div class="w-rabbit-card-meta"><b>Hutch:</b> '+esc(cageLabelWithLocation(cage))+'</div>'+
+          (can('worker')?'<div style="margin-top:8px;"><button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('open-rabbit-modal', {id:r.id})+'>Edit</button></div>':'')+
+        '</div>'+
+      '</article>';
+    }).join('')+'</div>';
   }
   function rabbitOptions(selectedId, excludeId, sexFilter){
     var opts = state.rabbits.filter(function(r){ return r.id!==excludeId && (!sexFilter || r.sex===sexFilter); });
@@ -1258,7 +1329,12 @@
   }
   function cageOptions(selectedId, rabbit){
     var opts = state.cages.filter(function(c){ return !rabbit || rabbitMatchesHutchRule(rabbit, c); });
-    return '<option value="">— unassigned —</option>'+opts.map(function(c){return '<option value="'+c.id+'" '+(c.id===selectedId?'selected':'')+'>'+esc(c.label)+'</option>';}).join('');
+    opts.sort(function(a,b){
+      var ak = String((a.location||'')+' '+(a.label||'')).toLowerCase();
+      var bk = String((b.location||'')+' '+(b.label||'')).toLowerCase();
+      return ak.localeCompare(bk);
+    });
+    return '<option value="">— unassigned —</option>'+opts.map(function(c){return '<option value="'+c.id+'" '+(c.id===selectedId?'selected':'')+'>'+esc(cageLabelWithLocation(c))+'</option>';}).join('');
   }
   function hutchTypeLabel(v){
     if(v==='doe') return 'Doe';
@@ -1304,28 +1380,31 @@
     return rabbit.sex === allowed;
   }
 
-  function openRabbitModal(id){
+  function openRabbitModal(id, prefill){
+    prefill = prefill || {};
     var r = id ? rabbitById(id) : null;
     var nextTag = suggestNextRabbitTag();
     var picturesText = pictureUrlsToText(r && r.pictures);
     var draftRabbit = { sex:(r&&r.sex)||'doe', isKit:!!(r&&r.isKit) };
     var html = '<div class="w-modal"><h3>'+(r?'Edit rabbit':'Add rabbit')+'</h3><form id="w-rabbit-form">'+
-      '<div class="w-row2"><div class="w-field"><label>Ear tag</label><input name="tag" required value="'+esc(r?r.tag:nextTag)+'"/></div>'+
-      '<div class="w-field"><label>Name</label><input name="name" required value="'+esc(r?r.name:'')+'"/></div></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Ear tag</label><input name="tag" required value="'+esc(r?r.tag:(prefill.tag||nextTag))+'"/></div>'+
+      '<div class="w-field"><label>Name</label><input name="name" required value="'+esc(r?r.name:(prefill.name||''))+'"/></div></div>'+
       '<div class="w-row2"><div class="w-field"><label>Breed</label><input name="breed" list="w-breeds" value="'+esc(r?r.breed:'')+'"/>'+
         '<datalist id="w-breeds"><option>New Zealand White</option><option>Californian</option><option>Flemish Giant</option><option>Rex</option><option>Dutch</option><option>Mini Lop</option><option>English Angora</option><option>Chinchilla</option></datalist></div>'+
       '<div class="w-field"><label>Sex</label><select name="sex"><option value="doe" '+(r&&r.sex==='doe'?'selected':'')+'>Doe (female)</option><option value="buck" '+(r&&r.sex==='buck'?'selected':'')+'>Buck (male)</option><option value="unknown" '+(r&&r.sex==='unknown'?'selected':'')+'>Unknown (unsexed kit)</option></select></div></div>'+
-      '<div class="w-row2"><div class="w-field"><label>Purchase price ('+esc(currentFarm.currency)+')</label><input type="number" step="0.01" min="0" name="purchasePrice" value="'+esc(moneyInput(r&&r.purchasePrice))+'"/></div>'+
-      '<div class="w-field"><label>Kit status</label><select name="isKit"><option value="no" '+(!r||!r.isKit?'selected':'')+'>Not a kit</option><option value="yes" '+(r&&r.isKit?'selected':'')+'>Kit</option></select></div></div>'+
-      '<div class="w-row2"><div class="w-field"><label>Date of birth</label><input type="date" name="dob" value="'+esc(r?r.dob:'')+'"/></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Purchase price ('+esc(currentFarm.currency)+')</label><input type="number" step="0.01" min="0" name="purchasePrice" value="'+esc(moneyInput(r ? r.purchasePrice : prefill.purchasePrice))+'"/></div>'+
+      '<div class="w-field"><label>Purchase date</label><input type="date" name="purchaseDate" value="'+esc(r?(r.purchaseDate||''):(prefill.purchaseDate||''))+'"/></div></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Kit status</label><select name="isKit"><option value="no" '+(!r||!r.isKit?'selected':'')+'>Not a kit</option><option value="yes" '+(r&&r.isKit?'selected':'')+'>Kit</option></select></div>'+
       '<div class="w-field"><label>Status</label><select name="status"><option value="active" '+(!r||r.status==='active'?'selected':'')+'>Active</option><option value="retired" '+(r&&r.status==='retired'?'selected':'')+'>Retired</option><option value="sold" '+(r&&r.status==='sold'?'selected':'')+'>Sold</option><option value="deceased" '+(r&&r.status==='deceased'?'selected':'')+'>Deceased</option></select></div></div>'+
+      '<div class="w-row2"><div class="w-field"><label>Date of birth</label><input type="date" name="dob" value="'+esc(r?r.dob:'')+'"/></div>'+
+      '<div class="w-field"></div></div>'+
       '<div class="w-row2"><div class="w-field"><label>Sire (father)</label><select name="sireId">'+rabbitOptions(r?r.sireId:'', r?r.id:null,'buck')+'</select></div>'+
       '<div class="w-field"><label>Dam (mother)</label><select name="damId">'+rabbitOptions(r?r.damId:'', r?r.id:null,'doe')+'</select></div></div>'+
       '<div class="w-row2"><div class="w-field"><label>Hutch</label><select name="cageId">'+cageOptions(r?r.cageId:'', draftRabbit)+'</select></div>'+
       '<div class="w-field"><label>Weight (lb)</label><input type="number" step="0.1" name="weight" value="'+(r&&r.weight!=null?r.weight:'')+'"/></div></div>'+
       '<div class="w-field"><label>Pictures (URLs, one per line or comma separated)</label><textarea name="pictures" placeholder="https://...">'+esc(picturesText)+'</textarea></div>'+
       '<div class="w-field"><label>Lineage history</label><textarea name="lineageHistory" placeholder="Family line notes, notable traits, history">'+esc(r?r.lineageHistory:'')+'</textarea></div>'+
-      '<div class="w-field"><label>Notes</label><textarea name="notes">'+esc(r?r.notes:'')+'</textarea></div>'+
+      '<div class="w-field"><label>Notes</label><textarea name="notes">'+esc(r?r.notes:(prefill.notes||''))+'</textarea></div>'+
       '<div class="w-modalfoot">'+(r&&can('supervisor')?'<button type="button" class="w-btn w-btn-danger"'+clickAttrs('delete-rabbit', {id:r.id})+'>Delete</button>':'<span></span>')+
       '<span style="flex:1"></span><button type="button" class="w-btn w-btn-ghost"'+clickAttrs('close-modal')+'>Cancel</button>'+
       '<button type="submit" class="w-btn w-btn-primary">Save rabbit</button></div></form></div>';
@@ -1346,6 +1425,7 @@
         status:f.get('status'), sireId:f.get('sireId')||null, damId:f.get('damId')||null, cageId:f.get('cageId')||null,
         weight:f.get('weight')?parseFloat(f.get('weight')):null,
         purchasePrice:f.get('purchasePrice')?parseFloat(f.get('purchasePrice')):null,
+        purchaseDate:f.get('purchaseDate')||null,
         isKit:f.get('isKit')==='yes',
         pictures:pictureUrlsFromText(f.get('pictures')),
         lineageHistory:f.get('lineageHistory')||'',
@@ -1380,7 +1460,8 @@
     var recs = state.health.filter(function(h){return h.rabbitId===id;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
     var html = '<div class="w-modal" style="max-width:560px;">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><h3>'+esc(r.name)+' '+eartag(r)+'</h3>'+statusPill(r.status)+'</div>'+
-      '<div class="w-detailgrid" style="margin-top:12px;">'+det('Breed', r.breed)+det('Sex', r.sex)+det('Born', fmtDate(r.dob))+det('Kit status', r.isKit?'Kit':'Not a kit')+det('Purchase price', r.purchasePrice!=null?money(r.purchasePrice):'—')+det('Weight', r.weight?r.weight+' lb':'—')+det('Hutch', cage?cage.label:'Unassigned')+det('Sire', sire?sire.tag+' — '+sire.name:'Unknown')+det('Dam', dam?dam.tag+' — '+dam.name:'Unknown')+'</div>'+
+      '<div class="w-detailgrid" style="margin-top:12px;">'+det('Breed', r.breed)+det('Sex', r.sex)+det('Born', fmtDate(r.dob))+det('Kit status', r.isKit?'Kit':'Not a kit')+det('Purchase price', r.purchasePrice!=null?money(r.purchasePrice):'—')+det('Purchase date', fmtDate(r.purchaseDate))+det('Weight', r.weight?r.weight+' lb':'—')+det('Hutch', cageLabelWithLocation(cage)||'Unassigned')+det('Sire', sire?sire.tag+' — '+sire.name:'Unknown')+det('Dam', dam?dam.tag+' — '+dam.name:'Unknown')+'</div>'+
+
       (litter ? ('<div style="margin-top:8px;"><b>Birth litter:</b> <span class="w-link"'+clickAttrs('open-litter-modal', {id:litter.id})+'>Open litter record</span>'+(siblings.length?('<div class="w-sub" style="margin-top:4px;">Siblings: '+siblings.map(function(s){ return rabbitListLink(s, true); }).join(' ')+'</div>'):'')+'</div>') : '')+
       (sire||dam? ('<div style="margin-top:6px;padding-top:10px;border-top:1px solid var(--line);"><div class="k" style="font-size:.72rem;text-transform:uppercase;color:var(--ink-muted);letter-spacing:.5px;margin-bottom:6px;">Grandparents</div><div class="w-detailgrid">'+det("Sire's sire", grand(sire,'sireId'))+det("Sire's dam", grand(sire,'damId'))+det("Dam's sire", grand(dam,'sireId'))+det("Dam's dam", grand(dam,'damId'))+'</div></div>') : '')+
       (r.lineageHistory? '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);"><div class="k" style="font-size:.72rem;text-transform:uppercase;color:var(--ink-muted);letter-spacing:.5px;margin-bottom:6px;">Lineage history</div><div style="font-size:.85rem;color:var(--ink-muted);line-height:1.5;">'+esc(r.lineageHistory).replace(/\n/g,'<br/>')+'</div></div>':'')+
@@ -2143,11 +2224,182 @@
   // ============ LEDGER ============
   var LEDGER_CATEGORY_PRESETS = {
     Sale: ['Rabbit sale', 'Breeding service', 'Manure sale', 'Equipment resale', 'Other income'],
-    Expense: ['Vet visit', 'Medicine', 'Housing repair', 'Utilities', 'Transport', 'Other expense'],
+    Expense: ['Feed expense', 'Breeding stock purchase', 'Vet visit', 'Medicine', 'Housing repair', 'Utilities', 'Transport', 'Other expense'],
     Feed: ['Pellet feed', 'Hay', 'Supplements', 'Treats', 'Feed additive'],
     Other: ['Adjustment', 'Bank charge', 'Miscellaneous']
   };
-  var ledgerFilter = {range:'all', type:'all', rabbit:'all', from:'', to:''};
+  var ledgerFilter = {range:'all', type:'all', rabbit:'all', from:'', to:'', chartMonths:'6'};
+  function isFeedExpenseCategory(category){
+    var c = String(category || '').toLowerCase();
+    if(!c) return false;
+    return c.indexOf('feed') > -1 || c.indexOf('pellet') > -1 || c.indexOf('hay') > -1 || c.indexOf('supplement') > -1;
+  }
+  function isFeedLedgerEntry(entry){
+    if(!entry) return false;
+    var type = String(entry.type || '');
+    if(type === 'Feed') return true;
+    return type === 'Expense' && isFeedExpenseCategory(entry.category);
+  }
+  function isBreedingStockExpense(entry){
+    if(!entry || String(entry.type||'')!=='Expense') return false;
+    return String(entry.category||'').toLowerCase() === 'breeding stock purchase';
+  }
+  async function maybeAutoCreateFeedItemFromLedger(entry){
+    if(!isFeedLedgerEntry(entry)) return {kind:'none'};
+    var suggestedName = String(entry.category || 'Feed').trim() || 'Feed';
+    var exists = state.feedStock.some(function(item){
+      return String(item.name || '').toLowerCase() === suggestedName.toLowerCase();
+    });
+    if(exists) return {kind:'exists', name:suggestedName};
+    await saveFeedItemApi(null, {
+      name: suggestedName,
+      quantity: 0,
+      unit: 'kg',
+      reorderLevel: 0,
+      notes: 'Auto-created from ledger '+String(entry.type||'entry').toLowerCase()+' on '+(entry.date || todayStr())+'.'
+    });
+    return {kind:'created', name:suggestedName};
+  }
+  function ledgerSignedAmount(entry){
+    var amount = Number(entry && entry.amount || 0);
+    return String(entry && entry.type || '') === 'Sale' ? amount : -amount;
+  }
+  function ledgerMonthSeries(rows, count){
+    var months = Math.max(3, count || 6);
+    var now = new Date(todayStr()+'T00:00:00');
+    var keys = [];
+    for(var i=months-1;i>=0;i--){
+      var d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      keys.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));
+    }
+    var totals = {};
+    keys.forEach(function(k){ totals[k] = 0; });
+    rows.forEach(function(e){
+      if(!e || !e.date) return;
+      var key = String(e.date).slice(0,7);
+      if(totals[key] === undefined) return;
+      totals[key] += ledgerSignedAmount(e);
+    });
+    return keys.map(function(k){
+      var d = new Date(k+'-01T00:00:00');
+      return {key:k, label:d.toLocaleDateString(undefined,{month:'short'}), value:totals[k] || 0};
+    });
+  }
+  function ledgerTypeTotals(rows){
+    var totals = {Sale:0, Expense:0, Feed:0, Other:0};
+    rows.forEach(function(e){
+      var type = String(e.type || 'Other');
+      if(totals[type] === undefined) totals[type] = 0;
+      totals[type] += Number(e.amount || 0);
+    });
+    return totals;
+  }
+  function ledgerTopCategories(rows, topN){
+    var totals = {};
+    rows.forEach(function(e){
+      if(String(e.type||'')==='Sale') return;
+      var key = String(e.category||'Uncategorized').trim() || 'Uncategorized';
+      totals[key] = (totals[key] || 0) + Number(e.amount || 0);
+    });
+    var items = Object.keys(totals).map(function(k){ return {name:k, amount:totals[k]}; });
+    items.sort(function(a,b){ return b.amount-a.amount; });
+    return items.slice(0, topN || 5);
+  }
+  function ledgerRabbitProfitability(rows, topN){
+    var byRabbit = {};
+    rows.forEach(function(e){
+      if(!e || !e.rabbitId) return;
+      if(!byRabbit[e.rabbitId]) byRabbit[e.rabbitId] = {rabbitId:e.rabbitId, income:0, expense:0, entries:0};
+      var amount = Number(e.amount || 0);
+      if(String(e.type||'') === 'Sale') byRabbit[e.rabbitId].income += amount;
+      else byRabbit[e.rabbitId].expense += amount;
+      byRabbit[e.rabbitId].entries += 1;
+    });
+    var list = Object.keys(byRabbit).map(function(id){
+      var rec = byRabbit[id];
+      rec.net = rec.income - rec.expense;
+      return rec;
+    });
+    list.sort(function(a,b){ return b.net - a.net; });
+    if(topN === null || topN === undefined) return list;
+    return list.slice(0, topN || 8);
+  }
+  function ledgerAnalyticsPanel(rows){
+    if(!rows.length) return '<div class="w-empty"><p>No analytics yet. Add ledger entries to see trends.</p></div>';
+    var sales = rows.filter(function(e){ return String(e.type||'')==='Sale'; });
+    var expenses = rows.filter(function(e){ return String(e.type||'')!=='Sale'; });
+    var feedSpend = rows.filter(isFeedLedgerEntry).reduce(function(s,e){ return s+Number(e.amount||0); },0);
+    var avgSale = sales.length ? (sales.reduce(function(s,e){ return s+Number(e.amount||0); },0)/sales.length) : 0;
+    var biggestExpense = expenses.slice().sort(function(a,b){ return Number(b.amount||0)-Number(a.amount||0); })[0] || null;
+    var expenseTotal = expenses.reduce(function(s,e){ return s+Number(e.amount||0); },0);
+    var feedShare = expenseTotal ? ((feedSpend/expenseTotal)*100) : 0;
+
+    var months = parseInt(ledgerFilter.chartMonths, 10);
+    if(!months || isNaN(months)) months = 6;
+    var monthSeries = ledgerMonthSeries(rows, months);
+    var maxAbs = monthSeries.reduce(function(m,x){ return Math.max(m, Math.abs(x.value)); }, 1);
+    var monthBars = monthSeries.map(function(m){
+      var h = Math.max(8, Math.round((Math.abs(m.value)/maxAbs)*92));
+      return '<div class="l-bar-wrap"><div class="l-bar '+(m.value>=0?'pos':'neg')+'" style="height:'+h+'px;"></div><div class="l-bar-label">'+esc(m.label)+'</div><div class="l-bar-val">'+esc(money(Math.abs(m.value)))+(m.value<0?' out':' in')+'</div></div>';
+    }).join('');
+
+    var topCats = ledgerTopCategories(rows, 5);
+    var topMax = topCats.reduce(function(m,x){ return Math.max(m, x.amount); }, 1);
+    var catRows = topCats.length ? topCats.map(function(c){
+      var w = Math.max(8, Math.round((c.amount/topMax)*100));
+      return '<div class="l-cat-row"><div class="l-cat-head"><span>'+esc(c.name)+'</span><b>'+esc(money(c.amount))+'</b></div><div class="l-cat-track"><span style="width:'+w+'%"></span></div></div>';
+    }).join('') : '<div class="w-sub">No expense categories yet.</div>';
+
+    var typeTotals = ledgerTypeTotals(rows);
+    var typeSum = Object.keys(typeTotals).reduce(function(s,k){ return s + Number(typeTotals[k]||0); }, 0) || 1;
+    var typeColors = {Sale:'#1f7b5c', Expense:'#a94933', Feed:'#9b670e', Other:'#4e627a'};
+    var cursor = 0;
+    var stops = [];
+    ['Sale','Expense','Feed','Other'].forEach(function(k){
+      var pct = ((Number(typeTotals[k]||0)/typeSum)*100);
+      if(pct<=0) return;
+      stops.push(typeColors[k]+' '+cursor.toFixed(1)+'% '+(cursor+pct).toFixed(1)+'%');
+      cursor += pct;
+    });
+    if(!stops.length) stops.push('#c8d3df 0% 100%');
+    var donutStyle = 'background:conic-gradient('+stops.join(',')+');';
+
+    var rabbitRows = ledgerRabbitProfitability(rows, 8);
+    var profitableCount = rabbitRows.filter(function(r){ return r.net > 0; }).length;
+    var rabbitMaxAbs = rabbitRows.reduce(function(m,x){ return Math.max(m, Math.abs(x.net)); }, 1);
+    var rabbitProfitHtml = rabbitRows.length ? rabbitRows.map(function(rec){
+      var rabbit = rabbitById(rec.rabbitId);
+      var label = rabbit ? ((rabbit.tag||'')+' — '+(rabbit.name||'')) : 'Unknown rabbit';
+      var width = Math.max(8, Math.round((Math.abs(rec.net)/rabbitMaxAbs)*100));
+      return '<div class="l-rabbit-row">'+
+        '<div class="l-rabbit-head"><span>'+esc(label)+'</span><b>'+money(rec.net)+'</b></div>'+
+        '<div class="l-rabbit-meta">Income '+money(rec.income)+' · Expense '+money(rec.expense)+' · '+rec.entries+' entr'+(rec.entries===1?'y':'ies')+'</div>'+
+        '<div class="l-rabbit-track"><span class="'+(rec.net>=0?'pos':'neg')+'" style="width:'+width+'%"></span></div>'+
+      '</div>';
+    }).join('') : '<div class="w-sub">No rabbit-linked ledger entries yet.</div>';
+
+    return '<div class="l-analytics">'+
+      '<div class="l-kpis">'+
+        '<div class="l-kpi"><div class="k">Entries in range</div><div class="v">'+rows.length+'</div></div>'+
+        '<div class="l-kpi"><div class="k">Avg sale ticket</div><div class="v">'+money(avgSale)+'</div></div>'+
+        '<div class="l-kpi"><div class="k">Feed share of costs</div><div class="v">'+feedShare.toFixed(1)+'%</div></div>'+
+        '<div class="l-kpi"><div class="k">Largest expense</div><div class="v">'+(biggestExpense ? money(biggestExpense.amount) : '—')+'</div><div class="m">'+(biggestExpense ? esc(biggestExpense.category||'Expense') : '')+'</div></div>'+
+        '<div class="l-kpi"><div class="k">Profitable rabbits</div><div class="v">'+profitableCount+'</div><div class="m">of '+rabbitRows.length+' in top set</div></div>'+
+      '</div>'+
+      '<div class="l-grid">'+
+        '<div class="l-card"><h4>Monthly cashflow trend ('+months+' months)</h4><div class="l-bars">'+monthBars+'</div></div>'+
+        '<div class="l-card"><h4>Cost by category</h4>'+catRows+'</div>'+
+        '<div class="l-card"><h4>Type mix</h4><div class="l-donut-wrap"><div class="l-donut" style="'+donutStyle+'"></div><div class="l-donut-legend">'+
+          ['Sale','Expense','Feed','Other'].map(function(k){
+            var amount = Number(typeTotals[k]||0);
+            var pct = ((amount/typeSum)*100);
+            return '<div><span class="dot" style="background:'+typeColors[k]+'"></span>'+k+': '+money(amount)+' ('+pct.toFixed(1)+'%)</div>';
+          }).join('')+
+        '</div></div></div>'+
+      '</div>'+
+      '<div class="l-card"><h4>Rabbit profitability (top net)</h4>'+rabbitProfitHtml+'</div>'+
+    '</div>';
+  }
   function setLedgerFilter(key, value){ ledgerFilter[key]=value||''; if(current==='ledger') renderMain(); }
   function ledgerRangeStart(range){
     var now = new Date(todayStr()+'T00:00:00');
@@ -2219,8 +2471,13 @@
         '<option value="Other" '+(ledgerFilter.type==='Other'?'selected':'')+'>Other</option>'+
       '</select>'+
       '<select'+changeAttrs('set-ledger-filter', {key:'rabbit'})+' style="padding:7px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);">'+rabbitOptionsHtml.join('')+'</select>'+
+      '<select'+changeAttrs('set-ledger-filter', {key:'chartMonths'})+' style="padding:7px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);">'+
+        '<option value="6" '+(String(ledgerFilter.chartMonths||'6')==='6'?'selected':'')+'>Charts: 6 months</option>'+
+        '<option value="12" '+(String(ledgerFilter.chartMonths||'6')==='12'?'selected':'')+'>Charts: 12 months</option>'+
+      '</select>'+
       (ledgerFilter.range==='custom' ? '<input type="date" value="'+esc(ledgerFilter.from||'')+'"'+changeAttrs('set-ledger-filter', {key:'from'})+' style="padding:7px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);"/><input type="date" value="'+esc(ledgerFilter.to||'')+'"'+changeAttrs('set-ledger-filter', {key:'to'})+' style="padding:7px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);"/>' : '')+
       '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('export-ledger-csv')+'>Export CSV</button>'+
+      '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('export-ledger-profit-csv')+'>Export Rabbit P&amp;L</button>'+
     '</div>';
   }
   function exportLedgerCsv(){
@@ -2252,6 +2509,28 @@
     downloadCsv('ledger-'+todayStr()+'.csv', table);
     showToast('Ledger CSV downloaded.');
   }
+  function exportLedgerProfitCsv(){
+    var allRows = state.ledger.slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    var filtered = ledgerFilterRows(allRows);
+    var profitRows = ledgerRabbitProfitability(filtered, null);
+    if(!profitRows.length){ showToast('No rabbit profitability rows in current filter.', true); return; }
+    var table = [
+      ['Rabbit tag','Rabbit name','Income','Expense','Net','Entries']
+    ];
+    profitRows.forEach(function(rec){
+      var rabbit = rabbitById(rec.rabbitId);
+      table.push([
+        rabbit ? (rabbit.tag || '') : '',
+        rabbit ? (rabbit.name || '') : 'Unknown rabbit',
+        Number(rec.income||0).toFixed(2),
+        Number(rec.expense||0).toFixed(2),
+        Number(rec.net||0).toFixed(2),
+        String(rec.entries || 0)
+      ]);
+    });
+    downloadCsv('ledger-rabbit-profit-'+todayStr()+'.csv', table);
+    showToast('Rabbit profitability CSV downloaded.');
+  }
   function viewLedger(){
     var allRows = state.ledger.slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
     var filtered = ledgerFilterRows(allRows);
@@ -2262,6 +2541,7 @@
       (can('worker')?'<button class="w-btn w-btn-primary"'+clickAttrs('open-ledger-modal')+'>+ Add entry</button>':'')+'</div>'+
       '<div class="w-stats">'+stat(money(income),'Income')+stat(money(expense),'Expenses')+stat(money(income-expense),'Net')+'</div>'+
       '<div class="w-panel">'+ledgerFilterControls()+'</div>'+
+      '<div class="w-panel">'+ledgerAnalyticsPanel(filtered)+'</div>'+
       '<div class="w-panel">'+(rows.length? ledgerTable(rows) : '<div class="w-empty"><p>No ledger entries yet.</p></div>')+'</div>';
   }
   function ledgerTable(rows){
@@ -2333,7 +2613,26 @@
     form.onsubmit = async function(e){
       e.preventDefault(); var f = new FormData(e.target);
       var body = {date:f.get('date'), type:f.get('type'), category:f.get('category'), amount:parseFloat(f.get('amount'))||0, rabbitId:f.get('rabbitId')||null, notes:f.get('notes')};
-      try{ await createLedgerEntryApi(body); closeModal(); renderMain(); showToast('Ledger entry saved'); }
+      try{
+        await createLedgerEntryApi(body);
+        var feedSync = await maybeAutoCreateFeedItemFromLedger(body);
+        if(isBreedingStockExpense(body)){
+          closeModal();
+          renderMain();
+          showToast('Ledger entry saved. Add breeding rabbit details next.');
+          openRabbitModal(null, {
+            purchasePrice: body.amount,
+            purchaseDate: body.date,
+            notes: ('Purchased as breeding stock. '+String(body.notes||'')).trim()
+          });
+          return;
+        }
+        closeModal();
+        renderMain();
+        if(feedSync.kind==='created') showToast('Ledger entry saved and feed item added.');
+        else if(feedSync.kind==='exists') showToast('Ledger entry saved and linked to existing feed item.');
+        else showToast('Ledger entry saved');
+      }
       catch(err){ showToast(friendlyError(err), true); }
     };
   }
