@@ -880,13 +880,14 @@
     var active = state.rabbits.filter(function(r){return r.status==='active';});
     var does = active.filter(function(r){return r.sex==='doe';}).length;
     var bucks = active.filter(function(r){return r.sex==='buck';}).length;
+    var kits = active.filter(function(r){return !!r.isKit;}).length;
     var expecting = state.litters.filter(function(l){return !l.kindleDate;});
     var alerts = [];
     expecting.forEach(function(l){
       var days = daysFromToday(l.dueDate);
       if(days<=3){
         var doe = rabbitById(l.doeId);
-        alerts.push('<div class="w-alert">🐇 <div><b>'+esc(doe?doe.tag:'?')+'</b> is due to kindle '+(days<0?('<b>'+Math.abs(days)+' days ago</b> — check nest box'):(days===0?'<b>today</b>':'in <b>'+days+' days</b>'))+' ('+fmtDate(l.dueDate)+')</div></div>');
+        alerts.push('<div class="w-alert">Rabbit: <div><b>'+esc(doe?doe.tag:'?')+'</b> is due to kindle '+(days<0?('<b>'+Math.abs(days)+' days ago</b> - check nest box'):(days===0?'<b>today</b>':'in <b>'+days+' days</b>'))+' ('+fmtDate(l.dueDate)+')</div></div>');
       }
     });
     state.health.forEach(function(h){
@@ -894,7 +895,7 @@
         var days = daysFromToday(h.nextDue);
         if(days<=7 && days>=0){
           var r = rabbitById(h.rabbitId);
-          alerts.push('<div class="w-alert">💉 <div><b>'+esc(r?r.tag:'?')+'</b> — '+esc(h.type)+' due '+(days===0?'today':'in '+days+' days')+' ('+fmtDate(h.nextDue)+')</div></div>');
+          alerts.push('<div class="w-alert">Health: <div><b>'+esc(r?r.tag:'?')+'</b> - '+esc(h.type)+' due '+(days===0?'today':'in '+days+' days')+' ('+fmtDate(h.nextDue)+')</div></div>');
         }
       }
     });
@@ -904,23 +905,43 @@
       if(!due) return;
       var days = daysFromToday(due);
       if(days<=0){
-        alerts.push('<div class="w-alert">🗓️ <div><b>'+esc(t.name)+'</b> '+(days===0?'is due today':'is overdue by '+Math.abs(days)+' day'+(Math.abs(days)===1?'':'s'))+' ('+fmtDate(due)+')</div></div>');
+        alerts.push('<div class="w-alert">Task: <div><b>'+esc(t.name)+'</b> '+(days===0?'is due today':'is overdue by '+Math.abs(days)+' day'+(Math.abs(days)===1?'':'s'))+' ('+fmtDate(due)+')</div></div>');
       }
     });
     state.cages.forEach(function(c){
       var occ = active.filter(function(r){return r.cageId===c.id;}).length;
-      if(occ>c.capacity) alerts.push('<div class="w-alert">🏠 <div>Hutch <b>'+esc(c.label)+'</b> is over capacity ('+occ+'/'+c.capacity+')</div></div>');
+      if(occ>c.capacity) alerts.push('<div class="w-alert">Housing: <div>Hutch <b>'+esc(c.label)+'</b> is over capacity ('+occ+'/'+c.capacity+')</div></div>');
     });
     var lowStock = state.feedStock.filter(isLowStock);
-    lowStock.forEach(function(f){ alerts.push('<div class="w-alert">🌾 <div><b>'+esc(f.name)+'</b> is low: '+f.quantity+' '+esc(f.unit)+' left (reorder at '+f.reorderLevel+')</div></div>'); });
+    lowStock.forEach(function(f){ alerts.push('<div class="w-alert">Feed: <div><b>'+esc(f.name)+'</b> is low: '+f.quantity+' '+esc(f.unit)+' left (reorder at '+f.reorderLevel+')</div></div>'); });
+
     var dueTaskCount = state.tasks.filter(function(t){ if(String(t.status||'active')!=='active') return false; var due = t.nextDue || t.dueDate; return due && daysFromToday(due) <= 0; }).length;
     var overdueTaskCount = state.tasks.filter(function(t){ if(String(t.status||'active')!=='active') return false; var due = t.nextDue || t.dueDate; return due && daysFromToday(due) < 0; }).length;
+    var taskSoonCount = state.tasks.filter(function(t){ if(String(t.status||'active')!=='active') return false; var due=t.nextDue||t.dueDate; var d=daysFromToday(due); return due && d>0 && d<=3; }).length;
+    var healthDueCount = state.health.filter(function(h){ return h.nextDue && daysFromToday(h.nextDue) >= 0 && daysFromToday(h.nextDue) <= 7; }).length;
     var lowStockCount = lowStock.length;
     var upcomingLitters = expecting.length;
+
+    var hutchUnassigned = active.filter(function(r){ return !r.cageId; }).length;
+    var totalCapacity = state.cages.reduce(function(sum,c){ return sum + (parseInt(c.capacity,10)||0); }, 0);
+    var occupied = active.filter(function(r){ return !!r.cageId; }).length;
+    var occupancyRate = totalCapacity ? Math.round((occupied/totalCapacity)*100) : 0;
+
+    var monthStart = todayStr().slice(0,8)+'01';
+    var monthLedger = state.ledger.filter(function(e){ return e.date && String(e.date) >= monthStart; });
+    var monthIncome = monthLedger.filter(function(e){ return e.type==='Sale'; }).reduce(function(s,e){ return s + Number(e.amount||0); }, 0);
+    var monthExpense = monthLedger.filter(function(e){ return e.type!=='Sale'; }).reduce(function(s,e){ return s + Number(e.amount||0); }, 0);
+    var monthNet = monthIncome - monthExpense;
+    var monthFeedExpense = monthLedger.filter(isFeedLedgerEntry).reduce(function(s,e){ return s + Number(e.amount||0); }, 0);
 
     var actionButtons = '';
     if (can('worker')) actionButtons += '<button class="w-btn w-btn-primary w-quickaction"'+clickAttrs('open-rabbit-modal')+'>Add rabbit</button>';
     if (can('worker')) actionButtons += '<button class="w-btn w-btn-ghost w-quickaction"'+clickAttrs('open-task-modal')+'>Add task</button>';
+    if (can('worker')) actionButtons += '<button class="w-btn w-btn-ghost w-quickaction"'+clickAttrs('open-ledger-modal')+'>Add ledger entry</button>';
+    if (can('worker')) actionButtons += '<button class="w-btn w-btn-ghost w-quickaction"'+clickAttrs('open-feed-item-modal')+'>Add feed item</button>';
+    if (can('worker')) actionButtons += '<button class="w-btn w-btn-ghost w-quickaction"'+clickAttrs('open-cage-modal')+'>Add hutch</button>';
+    actionButtons += '<button class="w-btn w-btn-ghost w-quickaction"'+clickAttrs('go-view', {view:'ledger'})+'>Open ledger</button>';
+    actionButtons += '<button class="w-btn w-btn-ghost w-quickaction"'+clickAttrs('go-view', {view:'tasks'})+'>View tasks</button>';
     if (can('farm_manager')) actionButtons += '<button class="w-btn w-btn-ghost w-quickaction"'+clickAttrs('go-view', {view:'team'})+'>Manage team</button>';
 
     var emptyState = state.rabbits.length===0 ? ('<div class="w-panel w-empty"><p>Your herd ledger is empty. Add your first rabbit to get started.</p>'+(can('worker')?'<button class="w-btn w-btn-primary"'+clickAttrs('open-rabbit-modal')+'>+ Add a rabbit</button>':'')+'</div>') : '';
@@ -928,15 +949,21 @@
     return '<div class="w-panel w-hero"><div class="w-headrow"><div><h2>Dashboard</h2><div class="w-sub">'+esc(currentFarm.name)+' &middot; '+fmtDate(todayStr())+'</div></div></div>'+ 
       '<div class="w-hero-copy">Keep the farm running smoothly with one quick view of the most important updates. You have '+ dueTaskCount +' task'+(dueTaskCount===1?'':'s')+' due, with '+ overdueTaskCount +' overdue.</div>'+ 
       '<div class="w-dashboard-summary">'+
-        '<div class="w-dashboard-card"><div class="title">Tasks due</div><div class="value">'+dueTaskCount+'</div><div class="meta">'+overdueTaskCount+' overdue</div></div>'+ 
-        '<div class="w-dashboard-card"><div class="title">Low feed items</div><div class="value">'+lowStockCount+'</div><div class="meta">'+(lowStockCount?'Requires reorder':'All stocked')+'</div></div>'+ 
-        '<div class="w-dashboard-card"><div class="title">Litters expecting</div><div class="value">'+upcomingLitters+'</div><div class="meta">'+(upcomingLitters?'Check due dates':'None scheduled')+'</div></div>'+ 
-        '<div class="w-dashboard-card"><div class="title">Hutches</div><div class="value">'+state.cages.length+'</div><div class="meta">Capacity status below</div></div>'+ 
+        '<div class="w-dashboard-card"><div class="title">Tasks due</div><div class="value">'+dueTaskCount+'</div><div class="meta">'+overdueTaskCount+' overdue · '+taskSoonCount+' due soon</div></div>'+ 
+        '<div class="w-dashboard-card"><div class="title">Monthly net</div><div class="value">'+money(monthNet)+'</div><div class="meta">Income '+money(monthIncome)+' · Expense '+money(monthExpense)+'</div></div>'+ 
+        '<div class="w-dashboard-card"><div class="title">Feed spend (month)</div><div class="value">'+money(monthFeedExpense)+'</div><div class="meta">'+lowStockCount+' low stock item'+(lowStockCount===1?'':'s')+'</div></div>'+ 
+        '<div class="w-dashboard-card"><div class="title">Hutch occupancy</div><div class="value">'+occupancyRate+'%</div><div class="meta">'+occupied+'/'+(totalCapacity||0)+' slots used · '+hutchUnassigned+' unassigned</div></div>'+ 
       '</div>'+ 
       (actionButtons? '<div class="w-quickactions">'+actionButtons+'</div>' : '')+
       '</div>'+
       emptyState+
-      '<div class="w-stats">'+stat(active.length,'Active rabbits')+stat(does,'Does')+stat(bucks,'Bucks')+stat(expecting.length,'Litters expecting')+stat(state.cages.length,'Hutches')+stat(lowStock.length,'Low feed items')+stat(dueTaskCount,'Tasks due')+'</div>'+
+      '<div class="w-stats">'+stat(active.length,'Active rabbits')+stat(does,'Does')+stat(bucks,'Bucks')+stat(kits,'Kits')+stat(expecting.length,'Litters expecting')+stat(healthDueCount,'Health due <= 7 days')+stat(lowStock.length,'Low feed items')+stat(dueTaskCount,'Tasks due')+'</div>'+
+      '<div class="w-panel"><h3>Farm Snapshot</h3><div class="w-dashboard-grid">'+
+        '<div class="w-dashboard-tile"><div class="k">Breeding queue</div><div class="v">'+upcomingLitters+'</div><div class="m">planned litter'+(upcomingLitters===1?'':'s')+'</div><button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('go-view',{view:'breeding'})+'>Open breeding</button></div>'+
+        '<div class="w-dashboard-tile"><div class="k">Housing</div><div class="v">'+state.cages.length+'</div><div class="m">hutches tracked</div><button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('go-view',{view:'housing'})+'>Open housing</button></div>'+
+        '<div class="w-dashboard-tile"><div class="k">Feed operations</div><div class="v">'+state.feedStock.length+'</div><div class="m">items in stock register</div><button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('go-view',{view:'feed'})+'>Open feed</button></div>'+
+        '<div class="w-dashboard-tile"><div class="k">Financial ledger</div><div class="v">'+state.ledger.length+'</div><div class="m">entries recorded</div><button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('go-view',{view:'ledger'})+'>Open ledger</button></div>'+
+      '</div></div>'+
       (alerts.length? ('<div class="w-panel"><h3>Attention needed</h3>'+alerts.join('')+'</div>') : '')+
       '<div class="w-panel"><h3>Recent activity</h3>'+recentActivity()+'</div>';
   }
@@ -944,7 +971,7 @@
     var items = [];
     state.rabbits.slice(0,40).forEach(function(r){ items.push({d:r.dob||todayStr(), text:'Rabbit '+r.tag+' ('+r.name+') added to herd'}); });
     state.litters.slice(0,40).forEach(function(l){ if(l.kindleDate){ var doe=rabbitById(l.doeId); items.push({d:l.kindleDate, text:(doe?doe.tag:'?')+' kindled '+(l.kitsBorn||0)+' kits'}); } });
-    state.ledger.slice(0,80).forEach(function(e){ items.push({d:e.date, text:e.type+': '+e.category+' — '+money(e.amount)}); });
+    state.ledger.slice(0,80).forEach(function(e){ items.push({d:e.date, text:e.type+': '+e.category+' - '+money(e.amount)}); });
     items.sort(function(a,b){ return new Date(b.d)-new Date(a.d); });
     items = items.slice(0,8);
     if(!items.length) return '<div class="w-empty"><p>Nothing recorded yet.</p></div>';
@@ -2363,6 +2390,8 @@
     });
     if(!stops.length) stops.push('#c8d3df 0% 100%');
     var donutStyle = 'background:conic-gradient('+stops.join(',')+');';
+    var datePoints = rows.map(function(r){ return String(r.date||''); }).filter(Boolean).sort();
+    var periodLabel = datePoints.length ? (fmtDate(datePoints[0])+' to '+fmtDate(datePoints[datePoints.length-1])) : 'No period';
 
     var rabbitRows = ledgerRabbitProfitability(rows, 8);
     var profitableCount = rabbitRows.filter(function(r){ return r.net > 0; }).length;
@@ -2379,6 +2408,7 @@
     }).join('') : '<div class="w-sub">No rabbit-linked ledger entries yet.</div>';
 
     return '<div class="l-analytics">'+
+      '<div class="l-head"><div><h4>Financial Analytics</h4><div class="l-sub">'+esc(periodLabel)+' · '+rows.length+' filtered entries</div></div><div class="l-chipset"><span class="l-chip">Chart horizon: '+months+' months</span><span class="l-chip">Feed spend: '+money(feedSpend)+'</span></div></div>'+
       '<div class="l-kpis">'+
         '<div class="l-kpi"><div class="k">Entries in range</div><div class="v">'+rows.length+'</div></div>'+
         '<div class="l-kpi"><div class="k">Avg sale ticket</div><div class="v">'+money(avgSale)+'</div></div>'+
@@ -2387,7 +2417,7 @@
         '<div class="l-kpi"><div class="k">Profitable rabbits</div><div class="v">'+profitableCount+'</div><div class="m">of '+rabbitRows.length+' in top set</div></div>'+
       '</div>'+
       '<div class="l-grid">'+
-        '<div class="l-card"><h4>Monthly cashflow trend ('+months+' months)</h4><div class="l-bars">'+monthBars+'</div></div>'+
+        '<div class="l-card l-card-span2"><h4>Monthly cashflow trend ('+months+' months)</h4><div class="l-bars">'+monthBars+'</div></div>'+
         '<div class="l-card"><h4>Cost by category</h4>'+catRows+'</div>'+
         '<div class="l-card"><h4>Type mix</h4><div class="l-donut-wrap"><div class="l-donut" style="'+donutStyle+'"></div><div class="l-donut-legend">'+
           ['Sale','Expense','Feed','Other'].map(function(k){
@@ -2396,8 +2426,8 @@
             return '<div><span class="dot" style="background:'+typeColors[k]+'"></span>'+k+': '+money(amount)+' ('+pct.toFixed(1)+'%)</div>';
           }).join('')+
         '</div></div></div>'+
+        '<div class="l-card l-card-span2"><h4>Rabbit profitability (top net)</h4>'+rabbitProfitHtml+'</div>'+
       '</div>'+
-      '<div class="l-card"><h4>Rabbit profitability (top net)</h4>'+rabbitProfitHtml+'</div>'+
     '</div>';
   }
   function setLedgerFilter(key, value){ ledgerFilter[key]=value||''; if(current==='ledger') renderMain(); }
