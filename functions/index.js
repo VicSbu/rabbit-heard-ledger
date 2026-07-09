@@ -2,6 +2,7 @@ const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https')
 const { scheduler } = require('firebase-functions/v2');
 const admin = require('firebase-admin');
 const https = require('https');
+const nodemailer = require('nodemailer');
 const path = require('path');
 
 admin.initializeApp();
@@ -37,10 +38,35 @@ async function ensureUserDoc(uid, mustChangePassword) {
 
 async function maybeSendSetupEmail(email, tempPin) {
   if (!email || !tempPin) return { sent: false, reason: 'missing-email-or-pin' };
+
+  const gmailFromEmail = process.env.GMAIL_FROM_EMAIL || 'adminrabbitherd@gmail.com';
+  const gmailAppPassword = process.env.GMAIL_APP_PASSWORD || 'iyij itak xetw jdkh';
+  if (gmailAppPassword) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: gmailFromEmail,
+          pass: gmailAppPassword,
+        },
+      });
+      await transporter.sendMail({
+        from: gmailFromEmail,
+        to: email,
+        subject: 'Your Warren account details',
+        text: `Welcome to Rabbit Herd Ledger.\n\nYour temporary login PIN is: ${tempPin}\n\nPlease sign in with your email address and this PIN, then set a new password.\n`,
+      });
+      return { sent: true, reason: null };
+    } catch (err) {
+      console.warn('Gmail setup email error:', err);
+      return { sent: false, reason: 'gmail-send-error' };
+    }
+  }
+
   const sendGridApiKey = process.env.SENDGRID_API_KEY;
   if (!sendGridApiKey) {
-    console.warn('SendGrid not configured; skipping setup email.');
-    return { sent: false, reason: 'sendgrid-api-key-missing' };
+    console.warn('Gmail app password missing; SendGrid not configured; skipping setup email.');
+    return { sent: false, reason: 'gmail-app-password-missing' };
   }
   const fromEmail = process.env.SENDGRID_FROM_EMAIL;
   if (!fromEmail) {
