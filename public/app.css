@@ -304,6 +304,11 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
 .w-notice-banner{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;background:linear-gradient(135deg, rgba(52,105,168,.12), rgba(52,105,168,.05));border:1px solid rgba(52,105,168,.22);border-radius:20px;padding:16px 18px;margin-bottom:16px;box-shadow:0 16px 36px rgba(16,39,59,.06);}
 .w-notice-banner b{display:block;margin-bottom:6px;color:var(--accent-strong);} 
 .w-notice-close{border:none;background:transparent;color:var(--ink-muted);font-size:1.15rem;cursor:pointer;padding:2px 6px;}
+.w-install-banner{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;background:linear-gradient(135deg,#fff9ec,#ffe9c9);border:1px solid rgba(211,138,18,.3);border-left:5px solid #d38a12;border-radius:20px;padding:14px 16px;margin-bottom:14px;box-shadow:0 14px 34px rgba(16,39,59,.07);}
+.w-install-copy{display:grid;gap:6px;min-width:0;}
+.w-install-title{font-weight:700;color:#704700;letter-spacing:.2px;}
+.w-install-sub{font-size:.86rem;color:#8d6a2a;line-height:1.45;max-width:720px;}
+.w-install-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
 .w-farmpick{max-width:520px;margin:80px auto;padding:0 18px;}
 .w-farmcard{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:16px 18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease;}
 .w-farmcard:hover{transform:translateY(-1px);box-shadow:0 22px 50px rgba(16,39,59,.08);}
@@ -332,6 +337,8 @@ h1,h2,h3{font-family:'Zilla Slab',serif;font-weight:700;margin:0;color:var(--ink
   .w-detailgrid{grid-template-columns:1fr;}
   .w-authwrap,.w-authcard,.w-farmpick{padding:0 14px;}
   .w-authcard,.w-farmcard,.w-panel,.w-modal{border-radius:20px;}
+  .w-install-banner{flex-direction:column;align-items:stretch;}
+  .w-install-actions{justify-content:flex-start;}
   .w-panel{padding:16px;overflow-x:hidden;}
   .w-field input,.w-field select,.w-field textarea{font-size:.98rem;}
   .b-queue-item{align-items:flex-start;}

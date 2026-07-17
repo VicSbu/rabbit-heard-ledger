@@ -1,10 +1,17 @@
 {
   "name": "Rabbit Heard Ledger",
   "short_name": "Rabbit Ledger",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
+  "description": "Rabbit farm herd, breeding, feed, and finance ledger.",
+  "lang": "en",
+  "dir": "ltr",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "display": "standalone",
   "background_color": "#f4f7fb",
   "theme_color": "#ffffff",
+  "orientation": "portrait-primary",
   "icons": [
     {
       "src": "/favicon/android-icon-36x36.png",
@@ -34,7 +41,14 @@
     {
       "src": "/favicon/android-icon-192x192.png",
       "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon/ms-icon-310x310.png",
+      "sizes": "310x310",
       "type": "image/png"
     }
-  ]
+  ],
+  "prefer_related_applications": false
 }

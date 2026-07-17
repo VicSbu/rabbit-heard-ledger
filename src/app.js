@@ -65,6 +65,13 @@
   var loading = false;
   var mustChangePassword = false;
   var memberNotice = null;
+  var installPromptEvent = null;
+  var installStatus = {
+    installed:false,
+    dismissedUntil:0,
+    dismissCount:0,
+    lastShownAt:0
+  };
 
   // ============ HELPERS ============
   function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -112,6 +119,14 @@
   function clickAttrs(action, attrs){ return dataAttrs(Object.assign({action:action}, attrs || {})); }
   function changeAttrs(action, attrs){ return dataAttrs(Object.assign({change:action}, attrs || {})); }
   function inputAttrs(action, attrs){ return dataAttrs(Object.assign({input:action}, attrs || {})); }
+  function safeStorageGet(key){
+    try{ return localStorage.getItem(key); }
+    catch(e){ return null; }
+  }
+  function safeStorageSet(key, value){
+    try{ localStorage.setItem(key, value); }
+    catch(e){ }
+  }
 
   function bindUiEvents(){
     if(bindUiEvents.bound) return;
@@ -187,6 +202,9 @@
     if(action === 'herd-bulk-cage') return bulkAssignHerdCage();
     if(action === 'set-herd-page') return setHerdPage(target.dataset.page);
     if(action === 'set-herd-view') return setHerdViewMode(target.dataset.mode);
+    if(action === 'install-app') return triggerInstallPrompt();
+    if(action === 'dismiss-install') return dismissInstallPrompt();
+    if(action === 'show-install-help') return showInstallHelp();
   }
 
   function handleUiChange(action, target){
@@ -205,6 +223,135 @@
   }
 
   bindUiEvents();
+
+  function isStandaloneMode(){
+    var standalone = false;
+    try{ standalone = !!window.matchMedia && window.matchMedia('(display-mode: standalone)').matches; }
+    catch(e){ }
+    return standalone || (window.navigator && window.navigator.standalone === true);
+  }
+  function isIosDevice(){
+    var ua = String((navigator && navigator.userAgent) || '').toLowerCase();
+    return /iphone|ipad|ipod/.test(ua);
+  }
+  function isMobileDevice(){
+    var ua = String((navigator && navigator.userAgent) || '').toLowerCase();
+    return /android|iphone|ipad|ipod|mobile/.test(ua);
+  }
+  function loadInstallState(){
+    installStatus.dismissedUntil = parseInt(safeStorageGet('rhl_install_dismissed_until') || '0', 10) || 0;
+    installStatus.dismissCount = parseInt(safeStorageGet('rhl_install_dismiss_count') || '0', 10) || 0;
+  }
+  function saveInstallState(){
+    safeStorageSet('rhl_install_dismissed_until', String(installStatus.dismissedUntil || 0));
+    safeStorageSet('rhl_install_dismiss_count', String(installStatus.dismissCount || 0));
+  }
+  function isInstallAvailable(){
+    if(installStatus.installed || isStandaloneMode()) return false;
+    if(!isMobileDevice()) return false;
+    return true;
+  }
+  function shouldShowInstallBanner(){
+    if(!isInstallAvailable()) return false;
+    var now = Date.now();
+    if(installStatus.dismissedUntil && now < installStatus.dismissedUntil) return false;
+    return true;
+  }
+  function installBrowserHintHtml(){
+    if(isIosDevice()){
+      return '<ol style="margin:8px 0 0 18px;padding:0;display:grid;gap:6px;">'+
+        '<li>Tap the share icon in your browser.</li>'+
+        '<li>Choose <b>Add to Home Screen</b>.</li>'+
+        '<li>Confirm with <b>Add</b>.</li>'+
+      '</ol>';
+    }
+    return '<ol style="margin:8px 0 0 18px;padding:0;display:grid;gap:6px;">'+
+      '<li>Open the browser menu (<b>⋮</b> or <b>⋯</b>).</li>'+
+      '<li>Select <b>Install app</b> or <b>Add to Home screen</b>.</li>'+
+      '<li>Confirm to pin the app.</li>'+
+    '</ol>';
+  }
+  function viewInstallBanner(){
+    var primaryLabel = installPromptEvent ? 'Install app' : 'How to install';
+    var subtitle = installPromptEvent ?
+      'Install Rabbit Heard Ledger for quick access, offline shell caching, and an app-like experience.' :
+      'Your browser may not support one-tap install here. You can still add this app to your home screen manually.';
+    return '<div class="w-install-banner">'+
+      '<div class="w-install-copy">'+
+        '<div class="w-install-title">Install on your phone</div>'+
+        '<div class="w-install-sub">'+subtitle+'</div>'+
+      '</div>'+
+      '<div class="w-install-actions">'+
+        '<button class="w-btn w-btn-primary w-btn-sm"'+clickAttrs('install-app')+'>'+primaryLabel+'</button>'+
+        '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('show-install-help')+'>Steps</button>'+
+        '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('dismiss-install')+'>Later</button>'+
+      '</div>'+
+    '</div>';
+  }
+  function showInstallHelp(){
+    var html = '<div class="w-modal"><h3>Install Rabbit Heard Ledger</h3>'+
+      '<div class="w-sub">Use these steps if your browser does not show an install prompt automatically.</div>'+
+      '<div class="w-panel" style="margin-top:14px;">'+installBrowserHintHtml()+'</div>'+
+      '<div class="w-modalfoot"><button class="w-btn w-btn-ghost"'+clickAttrs('close-modal')+'>Close</button></div>'+
+    '</div>';
+    showModal(html);
+  }
+  async function triggerInstallPrompt(){
+    if(installStatus.installed || isStandaloneMode()){ showToast('App is already installed.'); return; }
+    if(!installPromptEvent){ return showInstallHelp(); }
+    try{
+      installPromptEvent.prompt();
+      if(installPromptEvent.userChoice){
+        var choice = await installPromptEvent.userChoice;
+        if(choice && choice.outcome === 'accepted'){
+          installStatus.dismissedUntil = 0;
+          installStatus.dismissCount = 0;
+          saveInstallState();
+          showToast('Thanks for installing Rabbit Heard Ledger.');
+        }else{
+          // Re-prompt later even when declined; progressive cooldown.
+          dismissInstallPrompt(true);
+        }
+      }
+    }catch(e){ showToast('Install prompt unavailable in this browser. Use manual steps.', true); }
+    installPromptEvent = null;
+    if(appScreen==='app') renderMain();
+  }
+  function dismissInstallPrompt(silent){
+    var now = Date.now();
+    installStatus.dismissCount = (installStatus.dismissCount || 0) + 1;
+    var cooldownHours = Math.min(48, 6 * installStatus.dismissCount);
+    installStatus.dismissedUntil = now + cooldownHours * 3600000;
+    saveInstallState();
+    if(!silent) showToast('No problem. We will remind you again later.');
+    if(appScreen==='app') renderMain();
+  }
+  function registerAppShellServiceWorker(){
+    if(!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('/sw.js').catch(function(err){
+      console.warn('App shell service worker registration failed:', err);
+    });
+  }
+  function initInstallUx(){
+    loadInstallState();
+    installStatus.installed = isStandaloneMode();
+    registerAppShellServiceWorker();
+
+    window.addEventListener('beforeinstallprompt', function(e){
+      e.preventDefault();
+      installPromptEvent = e;
+      if(appScreen==='app') renderMain();
+    });
+    window.addEventListener('appinstalled', function(){
+      installStatus.installed = true;
+      installStatus.dismissedUntil = 0;
+      installStatus.dismissCount = 0;
+      saveInstallState();
+      showToast('App installed successfully.');
+      if(appScreen==='app') renderMain();
+    });
+  }
+  initInstallUx();
 
   function showToast(msg, isError){
     var el = document.createElement('div');
@@ -619,6 +766,7 @@
         '</div>'+
         '<div class="w-nav" id="w-nav"></div>'+
         '<div class="w-sidefoot">'+esc(currentUser.displayName||currentUser.email)+'<br/>'+
+          (isInstallAvailable() ? '<button class="w-btn w-btn-ghost w-btn-sm" style="margin-top:8px;"'+clickAttrs('install-app')+'>Install app</button>' : '')+
           '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('go-new-farm')+'>+ New farm</button> '+
           '<button class="w-btn w-btn-ghost w-btn-sm"'+clickAttrs('logout')+'>Log out</button>'+
         '</div>'+
@@ -863,15 +1011,24 @@
     renderNav();
     var main = document.getElementById('w-main'); if(!main) return;
     if(loading){ main.innerHTML = '<div class="w-loading">Loading herd ledger…</div>'; return; }
-    if(current==='dashboard') main.innerHTML = viewDashboard();
-    else if(current==='herd') main.innerHTML = viewHerd();
-    else if(current==='breeding') main.innerHTML = viewBreeding();
-    else if(current==='health') main.innerHTML = viewHealth();
-    else if(current==='housing') main.innerHTML = viewHousing();
-    else if(current==='feed') main.innerHTML = viewFeed();
-    else if(current==='ledger') main.innerHTML = viewLedger();
-    else if(current==='tasks') main.innerHTML = viewTasks();
-    else if(current==='team') { main.innerHTML = '<div class="w-loading">Loading team…</div>'; loadAndRenderTeam(); }
+    var bannerHtml = shouldShowInstallBanner() ? viewInstallBanner() : '';
+    if(current==='dashboard') main.innerHTML = bannerHtml + viewDashboard();
+    else if(current==='herd') main.innerHTML = bannerHtml + viewHerd();
+    else if(current==='breeding') main.innerHTML = bannerHtml + viewBreeding();
+    else if(current==='health') main.innerHTML = bannerHtml + viewHealth();
+    else if(current==='housing') main.innerHTML = bannerHtml + viewHousing();
+    else if(current==='feed') main.innerHTML = bannerHtml + viewFeed();
+    else if(current==='ledger') main.innerHTML = bannerHtml + viewLedger();
+    else if(current==='tasks') main.innerHTML = bannerHtml + viewTasks();
+    else if(current==='team') { main.innerHTML = bannerHtml + '<div class="w-loading">Loading team…</div>'; loadAndRenderTeam(); }
+
+    if(shouldShowInstallBanner()){
+      var now = Date.now();
+      if(!installStatus.lastShownAt || (now - installStatus.lastShownAt) > (6 * 3600000)){
+        installStatus.lastShownAt = now;
+        showToast('Tip: Install Rabbit Heard Ledger for faster mobile access.');
+      }
+    }
   }
   function stat(n,l){ return '<div class="w-stat"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
 
